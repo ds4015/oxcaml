@@ -1,12 +1,12 @@
 (* Players *)
 
 module Player = struct
-  type player = {
+  type t = {
     player_num : int;
     player_name : string;
     mutable buttons_owned : int;
     mutable score : int
-  }
+  } [@@deriving sexp, compare, equal]
 end
 
 
@@ -27,11 +27,11 @@ module Patch = struct
     | BackwardL
     | ZigZag
 
-  type patch = {
+  type t = {
     shape : patch_shape;
     cost: int;
     move_num : int
-  }
+  } [@@deriving sexp, compare, equal]
 
 
   let get_patch_dim p =
@@ -52,7 +52,7 @@ module Patch = struct
   let shapes = [L; I; Z; Square; Smallest; T; Plus; LargePlus; H; ChunkyL; BackwardL; ZigZag]
 
 
-  let rec build_patch_set shapes (patches : patch list) =
+  let rec build_patch_set shapes (patches : t list) =
     match shapes with
        [] -> patches
   | hd::t -> let rec add_patches n patches =
@@ -79,72 +79,85 @@ module Game_board = struct
     filled_squares : (int * int) list
   }
 
-  type game_board =
+  type t =
     | MainBoard of main_board
     | QuiltBoard of quilt_board
+    [@@deriving sexp, compare, equal]
+
+exception Out_of_bounds
+
+let rec check_patch_squares f qb sr sc dir acc =
+  if acc < 1 then (sr, sc) else
+
+    let rec check_all_filled f =
+      match f with
+        [] -> true
+       | hd::tl -> let (r,c) = hd in
+                   if (r == sr && c == sc) then false
+                   else check_all_filled tl
+     in
+
+     if check_all_filled f then
+       match dir with
+          "D" -> if sr <= qb.squares then check_patch_squares f qb (sr+1) sc dir (acc-1) else raise Out_of_bounds
+        | "U" -> if sr > 0 then check_patch_squares f qb (sr-1) sc dir (acc-1) else raise Out_of_bounds
+        | "L" -> if sc > 0 then check_patch_squares f qb sr (sc-1) dir (acc-1) else raise Out_of_bounds
+        | "R" -> if sc <= qb.squares then check_patch_squares f qb sr (sc+1) dir (acc-1) else raise Out_of_bounds
+        | _ -> (-1,-1)
+     else (-1,-1)
 
 
-let rec check_patch_square f sr sc =
-  match f with
-    [] -> false
-    | hd::t ->
-      let (row, col) = hd in
-      if (row = sr && col = sc) then true
-      else check_patch_square t sr sc
+let rec check_if_patch_fits patchDim board row col =
+  match patchDim with
+    [] -> true
+    | hd::tl ->
+      let (q,d) = hd in
+      let (upd_row, upd_col) = check_patch_squares board.filled_squares board row col d q in
+      if upd_row == -1 && upd_col == -1 then false else
+        check_if_patch_fits tl board upd_row upd_col
+
+exception Patch_does_not_fit_there
+
+let place_patch_on_quilt_board board patch r c =
+  let dim = Patch.get_patch_dim patch in
+
+    if check_if_patch_fits dim board r c then
+
+      let rec process_dir r c dir filled acc =
+          let nf = (r,c)::filled in
+          if acc > 0 then
+            match dir with
+                "D" -> process_dir (r+1) c dir nf (acc-1)
+              | "U" -> process_dir (r-1) c dir nf (acc-1)
+              | "L" -> process_dir r (c-1) dir nf (acc-1)
+              | "R" -> process_dir r (c+1) dir nf (acc-1)
+              | _ -> nf
+          else nf
+      in
+
+      let rec process_patch patch qb nf =
+        match patch with
+          [] -> let upd_quilt_board = { board with filled_squares = nf } in
+                upd_quilt_board
+          | hd::t -> let (mv,dir) = hd in
+            let new_filled = process_dir r c dir board.filled_squares mv in
+            process_patch t qb new_filled
+      in
+      process_patch dim board board.filled_squares
+      else raise Patch_does_not_fit_there
 end
-
-(*
-let rec check_patch_fit b dim loc =
-  let (r,c) = loc in
-  match dim with
-      [] -> true
-    | hd::t -> let (mv, dir) = hd in
-        match dir with
-            "D" -> if (check_patch_square b.filled_squares r c+mv) = false then false
-              else check_patch_fit b t loc
-          | "U" -> if (check_patch_square b.filled_squares r c-mv) = false then false
-            else check_patch_fit b t loc
-          | "L" -> if not (check_patch_square b.filled_squares r-mv c) then false
-            else check_patch_fit b t loc
-          | "R" -> if not (check_patch_square b.filled_squares r+mv c) then false
-            else check_patch_fit b t loc
-          | "SD" | "SU" | "SL" | "SR" -> check_patch_fit b t loc
-          | _ -> check_patch_fit b t loc
-
-let rec add_patch_to_filled loc dim filled =
-  let (r,c) = loc in
-  match dim with
-     [] -> filled
-| hd::t -> let (mv, dir) = hd in
-  match dir with
-    "D" -> (r+mv, c) :: filled; let upd_loc = (r+mv, c) in add_patch_to_filled upd_loc t filled
-  | "U" -> (r-mv, c) :: filled; let upd_loc = (r-mv, c) in add_patch_to_filled upd_loc t filled
-  | "L" -> (r, c-mv) :: filled; let upd_loc = (r, c-mv) in add_patch_to_filled upd_loc t filled
-  | "R" -> (r, c+mv) :: filled; let upd_loc = (r, c+mv) in add_patch_to_filled upd_loc t filled
-  | _ -> add_patch_to_filled loc t filled
-    filled
-
-
-let place_patch bcache board p loc tk =
-  if check_patch_fit board (get_patch_dim p.shape) loc then
-  take_buttons bcache tk.owned_by p.cost &&
-  b.filled_squares = add_patch_to_filled loc (get_patch_dim p.shape) board.filled_squares &&
-  move_token_after_patch tk p.move_num
-  else false
-
-  *)
 
 (* Buttons *)
 
 module Button = struct
-  type button = {
+  type t = {
     mutable unassigned_cache : int
-  }
+  } [@@deriving sexp, compare, equal]
 
   exception Insufficient_cache
   exception Insufficient_funds
 
-  let give_buttons b (p : Player.player) n =
+  let give_buttons b (p : Player.t) n =
     if (b.unassigned_cache < n) then raise Insufficient_cache
     else
       begin
@@ -152,7 +165,7 @@ module Button = struct
         b.unassigned_cache <- b.unassigned_cache - n
       end
 
-  let take_buttons b (p : Player.player) n =
+  let take_buttons b (p : Player.t) n =
     if (p.buttons_owned < n) then raise Insufficient_funds
     else
       p.buttons_owned = p.buttons_owned - n &&
@@ -164,7 +177,7 @@ end
 module Token = struct
   type time_token = {
     mutable position : int;
-    owned_by : Player.player;
+    owned_by : Player.t;
     color : string
   }
 
@@ -172,10 +185,10 @@ module Token = struct
     pos: int
   }
 
-
-  type token =
+  type t =
     | TimeToken of time_token
     | NeutralToken of neutral_token
+    [@@deriving sexp, compare, equal]
 
   let move_token b t opp =
     let opp_pos = opp.position in
@@ -192,30 +205,31 @@ end
 (* Game Pieces *)
 
 module Game_pieces = struct
-  type game_pieces =
-    | TimePiece of Token.token
-    | NeutralPiece of Token.token
-    | PatchPiece of Patch.patch
-    | MainBoard of Game_board.game_board
-    | QuiltBoard of Game_board.game_board
-    | Button of Button.button
+  type t =
+    | TimePiece of Token.t
+    | NeutralPiece of Token.t
+    | PatchPiece of Patch.t
+    | MainBoard of Game_board.main_board
+    | QuiltBoard of Game_board.quilt_board
+    | Button of Button.t
+    [@@deriving sexp, compare, equal]
 end
 
 
 (* Game State *)
 
 module Game_state = struct
-  type game_state = {
+  type t = {
       mb: Game_board.main_board;
       p1qb : Game_board.quilt_board;
       p2qb: Game_board.quilt_board;
-      bc : Button.button;
-      turn: Player.player;
+      bc : Button.t;
+      turn: Player.t;
       tk1: Token.time_token;
       tk2: Token.time_token;
       neut: Token.neutral_token;
-      patches: Patch.patch list;
-  }
+      patches: Patch.t list;
+  } [@@deriving sexp, compare, equal]
 
   let update st qb1 qb2 bcache turn tt1 tt2 neut p pl =
     { st with p1qb = qb1; p2qb = qb2; bc = bcache; turn = pl; tk1 = tt1; tk2 = tt2; patches = p}
@@ -227,18 +241,18 @@ module Make_move = struct
     Token.move_token b p1t p2t
 end
 
-  let patches = Patch.init_patches 
+  let patches = Patch.init_patches
 
-  let p1 = { Player.player_name = "Jane"; Player.buttons_owned = 5; Player.player_num = 1; Player.score = 0} 
-  let p2 = { Player.player_name = "Bob"; Player.buttons_owned = 5; Player.player_num = 2; Player.score = 0} 
+  let p1 = { Player.player_name = "Jane"; Player.buttons_owned = 5; Player.player_num = 1; Player.score = 0}
+  let p2 = { Player.player_name = "Bob"; Player.buttons_owned = 5; Player.player_num = 2; Player.score = 0}
 
-  let mb = { Game_board.squares = 64; Game_board.special_patch_locs = [20; 32; 46; 57; 62]} 
-  let qb1 = { Game_board.squares = 81; Game_board.filled_squares = []} 
-  let qb2 = { Game_board.squares = 81; Game_board.filled_squares = []} 
-  let p1Token = { Token.color = "blue"; Token.owned_by = p1; Token.position = 1} 
-  let p2Token = { Token.color = "red"; Token.owned_by = p2; Token.position = 1} 
-  let nTok = { Token.pos = 1} 
-  let buttons = { Button.unassigned_cache = 162 } 
+  let mb = { Game_board.squares = 64; Game_board.special_patch_locs = [20; 32; 46; 57; 62]}
+  let qb1 = { Game_board.squares = 81; Game_board.filled_squares = []}
+  let qb2 = { Game_board.squares = 81; Game_board.filled_squares = []}
+  let p1Token = { Token.color = "blue"; Token.owned_by = p1; Token.position = 1}
+  let p2Token = { Token.color = "red"; Token.owned_by = p2; Token.position = 1}
+  let nTok = { Token.pos = 1}
+  let buttons = { Button.unassigned_cache = 162 }
 
   let initial_state = {
     Game_state.bc = buttons;
