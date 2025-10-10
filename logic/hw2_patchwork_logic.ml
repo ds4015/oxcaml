@@ -17,12 +17,17 @@ module Patch = struct
     | L
     | I
     | Z
+    | T
+    | H
     | Square
     | Smallest
-    | T
+    | SmallI
+    | SFatTail
     | Plus
     | LargePlus
-    | H
+    | LargeL
+    | HalfH
+    | HalfHLong
     | ChunkyL
     | BackwardL
     | ZigZag
@@ -30,6 +35,7 @@ module Patch = struct
   type t = {
     shape : patch_shape;
     cost: int;
+    pos_around_board: int;
     move_num : int
   } [@@deriving sexp, compare, equal]
 
@@ -39,30 +45,60 @@ module Patch = struct
         L -> [3,"D"; 1,"R"]
       | I -> [5, "D"]
       | Z -> [2, "R"; 2 , "D"; 1, "R"]
+      | SFatTail -> [2, "L"; 1, "D"; 1, "L"; 1, "D"; 1, "R"]
       | Square -> [2, "R"; 1, "D"; 1, "L"]
       | Smallest -> [2, "D"; 1, "R"]
+      | SmallI -> [3, "D"]
       | T -> [2, "D"; 1, "L"; 1, "SR"; 1, "R"; 1, "L"; 2, "D"]
       | Plus -> [2, "D"; 1, "L"; 1, "SR"; 1, "R"; 1, "SL"; 1, "D"]
       | LargePlus -> [2, "D"; 1, "L"; 2, "D"; 2, "R"; 2, "U"; 1, "SL"; 1, "D"; 1, "SD"; 1, "D"]
+      | LargeL -> [4, "D"; 1, "L"]
+      | HalfH -> [2, "D"; 1, "SU"; 2, "R"; 1, "D"]
+      | HalfHLong -> [1, "D"; 1, "SU"; 3, "R"; 1, "D"]
       | H -> [1, "D"; 1, "SU"; 2, "R"; 1, "U"; 1, "SD"; 1, "D"]
       | ChunkyL -> [3, "D"; 1, "R"; 1, "D"; 1, "L"; 1, "U"]
       | BackwardL -> [4, "D"; 1, "L"]
       | ZigZag -> [2, "R"; 1, "D"; 1, "R"; 1, "D"]
 
-  let shapes = [L; I; Z; Square; Smallest; T; Plus; LargePlus; H; ChunkyL; BackwardL; ZigZag]
+  let get_values p =
+    match p with
+      L -> (4, 2)
+    | I -> (7, 1)
+    | Z -> (1, 2)
+    | Square -> (6, 5)
+    | Smallest -> (3, 1)
+    | SmallI -> (2, 2)
+    | SFatTail -> (9, 8)
+    | T -> (0, 3)
+    | Plus -> (5, 4)
+    | LargePlus -> (5, 3)
+    | LargeL -> (10, 3)
+    | HalfH -> (1, 2)
+    | HalfHLong -> (1, 5)
+    | H -> (2, 3)
+    | ChunkyL -> (10, 5)
+    | BackwardL -> (4, 2)
+    | ZigZag -> (10, 4)
+
+  let shapes = [L; I; Z; Square; Smallest; T; Plus; LargePlus; H; HalfH; HalfHLong; SmallI; SFatTail; ChunkyL; BackwardL; ZigZag]
 
 
-  let rec build_patch_set shapes (patches : t list) =
+  let rec build_patch_set shapes (patches : t list) acc =
+    let rec add_patches n p patches =
+      if n < 2 then
+        let new_patch_list = p::patches in
+        add_patches (n+1) p new_patch_list
+      else patches
+    in
     match shapes with
        [] -> patches
-  | hd::t -> let rec add_patches n patches =
-      if (n = 0) then patches else
-        let patch = { shape = hd; cost = 4; move_num = 6} in
-        add_patches (n-1) (patch::patches)
-      in
-      build_patch_set t patches
+     | hd::t ->
+      let patch_attr = get_values hd in
+      let patch = { shape = hd; pos_around_board = acc; cost = fst patch_attr; move_num = snd patch_attr} in
+      let interim_patches = add_patches 0 patch patches in
+      build_patch_set t interim_patches (acc + 1)
 
-  let init_patches = build_patch_set shapes []
+  let init_patches = build_patch_set shapes [] 1
 end
 
 
@@ -182,7 +218,7 @@ module Token = struct
   }
 
   type neutral_token = {
-    pos: int
+    mutable pos: int
   }
 
   type t =
@@ -199,7 +235,7 @@ module Token = struct
     Printf.printf "Moved player %d to position %d" t.owned_by.player_num t'.position
 
   let move_token_after_patch t n =
-    t.position = t.position + n
+    t.position <- t.position + n
 end
 
 (* Game Pieces *)
@@ -231,14 +267,52 @@ module Game_state = struct
       patches: Patch.t list;
   } [@@deriving sexp, compare, equal]
 
-  let update st qb1 qb2 bcache turn tt1 tt2 neut p pl =
-    { st with p1qb = qb1; p2qb = qb2; bc = bcache; turn = pl; tk1 = tt1; tk2 = tt2; patches = p}
+  let update st qb1 qb2 bcache turn tt1 tt2 neut p =
+    { st with p1qb = qb1; p2qb = qb2; bc = bcache; turn = turn; tk1 = tt1; tk2 = tt2; patches = p}
 end
 
 
-module Make_move = struct
-  let choose_move b p1t p2t =
-    Token.move_token b p1t p2t
+module Move = struct
+  type t =
+    | Advance
+    | PlacePatch
+
+  let advance_on_board b p1t p2t = Token.move_token b p1t p2t
+
+  exception No_patches_left
+  let rec take_patch (pl : Patch.t list) choice acc =
+    match pl with
+      [] -> raise No_patches_left
+    | hd::tl -> if acc = choice then hd
+      else take_patch tl choice (acc + 1)
+
+
+  let choose_move state mv r c n =
+    let player_moving = state.Game_state.turn in
+    let player = player_moving.player_num in
+    let p1t = if player = 1 then state.Game_state.tk1 else state.Game_state.tk2 in
+    let p2t = if player = 2 then state.Game_state.tk2 else state.Game_state.tk1 in
+    let pqb = if player = 1 then state.p1qb else state.p2qb in
+    let patches = state.patches in
+    let neut = state.neut in
+    match mv with
+        Advance -> advance_on_board state.Game_state.bc p1t p2t;
+          if player = 1 then
+          let upd_st = Game_state.update state state.p1qb state.p2qb state.bc state.tk2.owned_by p1t p2t neut state.patches in
+          upd_st else
+          let upd_st = Game_state.update state state.p1qb state.p2qb state.bc state.tk1.owned_by p1t p2t neut state.patches in
+          upd_st
+      | PlacePatch -> let p = take_patch patches n 0 in
+        let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c in
+        ignore (Token.move_token_after_patch p1t p.move_num);
+        ignore (Button.take_buttons state.Game_state.bc player_moving p.cost);
+        neut.pos <- p.pos_around_board;
+        if player = 1 then
+          let upd_st = Game_state.update state qb state.p2qb state.bc state.tk2.owned_by p1t p2t neut state.patches in
+          upd_st
+        else
+          let upd_st = Game_state.update state state.p1qb qb state.bc state.tk1.owned_by p1t p2t neut state.patches in
+          upd_st
 end
 
   let patches = Patch.init_patches
@@ -266,4 +340,8 @@ end
     Game_state.turn = p1
   }
 
-  let make_move = Make_move.choose_move initial_state.bc initial_state.tk1 initial_state.tk2
+  let state = initial_state
+
+  let make_move = Move.choose_move initial_state PlacePatch 0 0 5
+  let state = make_move
+
