@@ -63,7 +63,6 @@ module Patch : sig
 
   (* initialize set of patches for new game *)
   val init_patches : t list
-  val get_patch_dim : patch_shape -> (int * string) list
 end
 
 (* Game Boards *)
@@ -74,9 +73,6 @@ module Game_board : sig
 
   type quilt_board = { squares : int; filled_squares : (int * int) list }
   [@@deriving sexp, compare, equal]
-
-  val place_patch_on_quilt_board :
-    quilt_board -> Patch.patch_shape -> int -> int -> quilt_board
 
   type t = MainBoard of main_board | QuiltBoard of quilt_board
   [@@deriving sexp, compare, equal]
@@ -104,8 +100,6 @@ module Token : sig
 
   type t = TimeToken of time_token | NeutralToken of neutral_token
   [@@deriving sexp, compare, equal]
-
-  val move_token : Button.t -> time_token -> time_token -> time_token
 end
 
 (* Game Pieces *)
