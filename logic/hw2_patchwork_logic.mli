@@ -60,9 +60,6 @@ module Patch : sig
     income : int;
   }
   [@@deriving sexp, compare, equal]
-
-  (* initialize set of patches for new game *)
-  val init_patches : t list
 end
 
 (* Game Boards *)
@@ -96,7 +93,7 @@ module Token : sig
   type time_token = { position : int; owned_by : Player.t; color : string }
   [@@deriving sexp, compare, equal]
 
-  type neutral_token = { mutable pos : int } [@@deriving sexp, compare, equal]
+  type neutral_token = { pos : int } [@@deriving sexp, compare, equal]
 
   type t = TimeToken of time_token | NeutralToken of neutral_token
   [@@deriving sexp, compare, equal]
@@ -105,14 +102,22 @@ end
 (* Game Pieces *)
 
 module Game_pieces : sig
-  type t =
-    | TimePiece of Token.t
-    | NeutralPiece of Token.t
-    | PatchPiece of Patch.t
-    | MainBoard of Game_board.main_board
-    | QuiltBoard of Game_board.quilt_board
-    | Button of Button.t
+  type t = {
+    player1 : Player.t;
+    player2 : Player.t;
+    time_piece1 : Token.time_token;
+    time_piece2 : Token.time_token;
+    neutral_piece : Token.neutral_token;
+    patch_pieces : Patch.t list;
+    patches_remaining : int list;
+    main_board : Game_board.main_board;
+    quilt_board1 : Game_board.quilt_board;
+    quilt_board2 : Game_board.quilt_board;
+    buttons : Button.t;
+  }
   [@@deriving sexp, compare, equal]
+
+  val setup_game : string -> string -> string -> string -> t
 end
 
 (* Game State *)
@@ -128,6 +133,7 @@ module Game_state : sig
     tk2 : Token.time_token;
     neut : Token.neutral_token;
     mutable patches : Patch.t list;
+    patches_remaining : int list;
   }
   [@@deriving sexp, compare, equal]
 end
@@ -141,5 +147,8 @@ module Move : sig
   exception Patch_already_taken
 
   (* Choose to advance or take/place patch, returns updated game state *)
-  val choose_move : Game_state.t -> t -> int -> int -> int -> Game_state.t
+  val choose_move :
+    (unit -> int) -> (string -> unit) -> Game_state.t -> t -> int -> int -> Game_state.t
 end
+
+val _init : unit -> Game_state.t

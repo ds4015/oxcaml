@@ -1,5 +1,11 @@
 open! Core
 
+let default_read_int () =
+  Out_channel.flush stdout;
+  In_channel.input_line_exn In_channel.stdin |> Int.of_string
+
+let default_print s = print_string s
+
 (* Players *)
 
 module Player = struct
@@ -212,6 +218,32 @@ module Patch = struct
       WidePlus;
     ]
 
+  let rec get_three i rem_list =
+    let start_over rl n =
+      if n = 1 then
+        match rl with
+        | [] -> (0, 0)
+        | a :: _ -> (a, 0)
+      else
+        match rl with
+        | a :: b :: _ -> (a, b)
+        | _ -> (0, 0)
+    in
+    match rem_list with
+    | hd :: tl ->
+        if hd = i then
+          match tl with
+          | a :: b :: c :: _ -> (a, b, c)
+          | [ a; b ] ->
+              let c = fst (start_over rem_list 1) in
+              (a, b, c)
+          | a :: [] ->
+              let b, c = start_over rem_list 2 in
+              (a, b, c)
+          | [] -> (0, 0, 0)
+        else get_three i tl
+    | [] -> (0, 0, 0)
+
   let rec build_patch_set shapes (patches : t list) acc =
     match shapes with
     | [] -> patches
@@ -230,7 +262,16 @@ module Patch = struct
         let pl_updated = patch :: patches in
         build_patch_set t pl_updated (acc + 1)
 
-  let init_patches = build_patch_set shapes [] 1
+  let init_patches () = build_patch_set shapes [] 1
+
+  let find_initial_neut_pos pl =
+    let rec iter_patch_list = function
+      | [] -> 1
+      | { shape = Corner; pos_around_board; cost = _; move_num = _; income = _ } :: _ ->
+          pos_around_board
+      | _ :: tl -> iter_patch_list tl
+    in
+    iter_patch_list pl
 end
 
 (* Game Boards *)
@@ -298,7 +339,8 @@ module Game_board = struct
     if check_if_patch_fits dim board r c then
       let rec process_dir r c dir filled acc =
         if acc > 0 then
-          if r > board.squares || c > board.squares then raise Out_of_bounds
+          if r > board.squares || c > board.squares || r < 1 || c < 1 then
+            raise Out_of_bounds
           else
             let nf = (r, c) :: filled in
             match dir with
@@ -372,7 +414,7 @@ module Token = struct
   type time_token = { position : int; owned_by : Player.t; color : string }
   [@@deriving sexp, compare, equal]
 
-  type neutral_token = { mutable pos : int } [@@deriving sexp, compare, equal]
+  type neutral_token = { pos : int } [@@deriving sexp, compare, equal]
 
   type t = TimeToken of time_token | NeutralToken of neutral_token
   [@@deriving sexp, compare, equal]
@@ -388,19 +430,123 @@ module Token = struct
   let move_token_after_patch t n =
     let new_token = { t with position = t.position + n } in
     new_token
+
+  let move_neut_token n = { pos = n }
 end
 
 (* Game Pieces *)
 
 module Game_pieces = struct
-  type t =
-    | TimePiece of Token.t
-    | NeutralPiece of Token.t
-    | PatchPiece of Patch.t
-    | MainBoard of Game_board.main_board
-    | QuiltBoard of Game_board.quilt_board
-    | Button of Button.t
+  type t = {
+    player1 : Player.t;
+    player2 : Player.t;
+    time_piece1 : Token.time_token;
+    time_piece2 : Token.time_token;
+    neutral_piece : Token.neutral_token;
+    patch_pieces : Patch.t list;
+    patches_remaining : int list;
+    main_board : Game_board.main_board;
+    quilt_board1 : Game_board.quilt_board;
+    quilt_board2 : Game_board.quilt_board;
+    buttons : Button.t;
+  }
   [@@deriving sexp, compare, equal]
+
+  let setup_game p1_name p2_name color1 color2 =
+    let remaining =
+      [
+        1;
+        2;
+        3;
+        4;
+        5;
+        6;
+        7;
+        8;
+        9;
+        10;
+        11;
+        12;
+        13;
+        14;
+        15;
+        16;
+        17;
+        18;
+        19;
+        20;
+        21;
+        22;
+        23;
+        24;
+        25;
+        26;
+        27;
+        28;
+        29;
+        30;
+      ]
+    in
+    let player_1 =
+      {
+        Player.player_num = 1;
+        Player.player_name = p1_name;
+        Player.buttons_owned = 5;
+        Player.score = 0;
+      }
+    in
+    let player_2 =
+      {
+        Player.player_num = 2;
+        Player.player_name = p2_name;
+        Player.buttons_owned = 5;
+        Player.score = 0;
+      }
+    in
+    let time_piece_1 : Token.time_token =
+      { position = 1; owned_by = player_1; color = color1 }
+    in
+    let time_piece_2 : Token.time_token =
+      { position = 1; owned_by = player_2; color = color2 }
+    in
+    let patches : Patch.t list = Patch.init_patches () in
+    let neut_pos = Patch.find_initial_neut_pos patches in
+    let neutral = { Token.pos = neut_pos } in
+    let main_board : Game_board.main_board = { squares = 64; special_patch_locs = [] } in
+    let quilt_board_1 : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
+    let quilt_board_2 : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
+    let b : Button.t = { unassigned_cache = 152 } in
+    let game_pieces =
+      {
+        player1 = player_1;
+        player2 = player_2;
+        time_piece1 = time_piece_1;
+        time_piece2 = time_piece_2;
+        neutral_piece = neutral;
+        patch_pieces = patches;
+        patches_remaining = remaining;
+        main_board;
+        quilt_board1 = quilt_board_1;
+        quilt_board2 = quilt_board_2;
+        buttons = b;
+      }
+    in
+    game_pieces
+
+  let get_input_line () =
+    Out_channel.flush stdout;
+    In_channel.input_line_exn In_channel.stdin
+
+  let gather_info () =
+    print_string "Please enter player 1's name: ";
+    let p1_name = get_input_line () in
+    print_string "Please enter player 1's token color: ";
+    let p1_color = get_input_line () in
+    print_string "Please enter player 2's name: ";
+    let p2_name = get_input_line () in
+    print_string "Please enter player 2's token color: ";
+    let p2_color = get_input_line () in
+    (p1_name, p1_color, p2_name, p2_color)
 end
 
 (* Game State *)
@@ -416,10 +562,11 @@ module Game_state = struct
     tk2 : Token.time_token;
     neut : Token.neutral_token;
     mutable patches : Patch.t list;
+    patches_remaining : int list;
   }
   [@@deriving sexp, compare, equal]
 
-  let update st qb1 qb2 bcache turn tt1 tt2 _neut p =
+  let update st qb1 qb2 bcache turn tt1 tt2 neut p rem =
     {
       st with
       p1qb = qb1;
@@ -428,9 +575,13 @@ module Game_state = struct
       turn;
       tk1 = tt1;
       tk2 = tt2;
+      neut;
       patches = p;
+      patches_remaining = rem;
     }
 end
+
+(* Move *)
 
 module Move = struct
   type t = Advance | PlacePatch
@@ -440,33 +591,48 @@ module Move = struct
   exception No_patches_left
   exception Patch_already_taken
 
-  let rec remove_at i pl =
-    let empty_patch : Patch.t =
-      { shape = Empty; cost = 0; pos_around_board = 0; move_num = 0; income = 0 }
-    in
+  let rec pl_remove_at i pl =
     match pl with
     | [] -> []
-    | _ :: tl when i = 0 -> empty_patch :: tl
-    | hd :: tl -> hd :: remove_at (i - 1) tl
+    | (h : Patch.t) :: t when h.pos_around_board = i -> t
+    | h :: t -> h :: pl_remove_at i t
 
-  let rec take_patch (pl : Patch.t list) choice acc =
+  let rec reml_remove_at i rem_list =
+    match rem_list with
+    | [] -> []
+    | h :: t when h = i -> t
+    | h :: t -> h :: reml_remove_at i t
+
+  let rec take_patch (pl : Patch.t list) choice =
     match pl with
     | [] -> raise No_patches_left
     | hd :: tl ->
-        if acc = choice then
+        if hd.pos_around_board = choice then
           match hd.shape with
           | Empty -> raise Patch_already_taken
           | _ -> hd
-        else take_patch tl choice (acc + 1)
+        else take_patch tl choice
 
-  let choose_move state mv r c n =
+  exception Invalid_patch_choice
+
+  let choose_patch ?(read_int = default_read_int) ?(pp = default_print) (c1, c2, c3) =
+    pp "Please choose a patch: \n";
+    pp (Printf.sprintf "\t1: %d\n\t2: %d\n\t3: %d" c1 c2 c3);
+    match read_int () with
+    | 1 -> c1
+    | 2 -> c2
+    | 3 -> c3
+    | _ -> raise Invalid_patch_choice
+
+  let choose_move rint pr state mv r c =
     let player_moving = state.Game_state.turn in
     let player = player_moving.player_num in
     let p1t = state.Game_state.tk1 in
     let p2t = state.Game_state.tk2 in
     let pqb = if player = 1 then state.p1qb else state.p2qb in
     let patches = state.patches in
-    let _neut = state.neut in
+    let remaining_patches = state.patches_remaining in
+    let neut = state.neut in
     match mv with
     | Advance ->
         let new_token =
@@ -486,20 +652,24 @@ module Move = struct
         if player = 1 then
           let upd_st =
             Game_state.update state state.p1qb state.p2qb state.bc next_turn new_token p2t
-              _neut state.patches
+              neut state.patches state.patches_remaining
           in
           upd_st
         else
           let upd_st =
             Game_state.update state state.p1qb state.p2qb state.bc next_turn p1t new_token
-              _neut state.patches
+              neut state.patches state.patches_remaining
           in
           upd_st
     | PlacePatch ->
-        let p = take_patch patches n 0 in
-        let pps = remove_at n patches in
+        let neut_pos = neut.pos in
+        let o1, o2, o3 = Patch.get_three neut_pos remaining_patches in
+        let choice = choose_patch ~read_int:rint ~pp:pr (o1, o2, o3) in
+        let p = take_patch patches choice in
+        let pps = pl_remove_at choice patches in
+        let upd_rem_list = reml_remove_at choice remaining_patches in
         let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c in
-        ignore (Button.take_buttons state.bc player_moving p.cost);
+        Button.take_buttons state.bc player_moving p.cost;
         let new_token =
           Token.move_token_after_patch (if player = 1 then p1t else p2t) p.move_num
         in
@@ -512,63 +682,30 @@ module Move = struct
           else if p1t.position < new_token.position then p1t.owned_by
           else p2t.owned_by
         in
-        _neut.pos <- p.pos_around_board;
-        if player = 1 then
-          let upd_st =
-            Game_state.update state qb state.p2qb state.bc next_turn new_token p2t _neut
-              pps
-          in
-          upd_st
-        else
-          let upd_st =
-            Game_state.update state state.p1qb qb state.bc next_turn p1t new_token _neut
-              pps
-          in
-          upd_st
+        let updated_neut = Token.move_neut_token (p.pos_around_board + 1) in
+        let upd_state =
+          if player = 1 then
+            Game_state.update state qb state.p2qb state.bc next_turn new_token p2t
+              updated_neut pps upd_rem_list
+          else
+            Game_state.update state state.p1qb qb state.bc next_turn p1t new_token
+              updated_neut pps upd_rem_list
+        in
+        upd_state
 end
 
-let patches = Patch.init_patches
-
-let p1 =
+let _init () =
+  let name1, color1, name2, color2 = Game_pieces.gather_info () in
+  let pieces = Game_pieces.setup_game name1 color1 name2 color2 in
   {
-    Player.player_name = "Jane";
-    Player.buttons_owned = 5;
-    Player.player_num = 1;
-    Player.score = 0;
+    Game_state.bc = pieces.buttons;
+    Game_state.mb = pieces.main_board;
+    Game_state.neut = pieces.neutral_piece;
+    Game_state.p1qb = pieces.quilt_board1;
+    Game_state.p2qb = pieces.quilt_board2;
+    Game_state.patches = pieces.patch_pieces;
+    Game_state.patches_remaining = pieces.patches_remaining;
+    Game_state.tk1 = pieces.time_piece1;
+    Game_state.tk2 = pieces.time_piece2;
+    Game_state.turn = pieces.player1;
   }
-
-let p2 =
-  {
-    Player.player_name = "Bob";
-    Player.buttons_owned = 5;
-    Player.player_num = 2;
-    Player.score = 0;
-  }
-
-let mb =
-  { Game_board.squares = 64; Game_board.special_patch_locs = [ 20; 32; 46; 57; 62 ] }
-
-let qb1 = { Game_board.squares = 81; Game_board.filled_squares = [] }
-let qb2 = { Game_board.squares = 81; Game_board.filled_squares = [] }
-let p1Token = { Token.color = "blue"; Token.owned_by = p1; Token.position = 1 }
-let p2Token = { Token.color = "red"; Token.owned_by = p2; Token.position = 1 }
-let nTok = { Token.pos = 1 }
-let buttons = { Button.unassigned_cache = 162 }
-
-let initial_state =
-  {
-    Game_state.bc = buttons;
-    Game_state.mb;
-    Game_state.neut = nTok;
-    Game_state.p1qb = qb1;
-    Game_state.p2qb = qb2;
-    Game_state.patches;
-    Game_state.tk1 = p1Token;
-    Game_state.tk2 = p2Token;
-    Game_state.turn = p1;
-  }
-
-let _state = initial_state
-
-(*   let make_move = Move.choose_move initial_state PlacePatch 0 0 5
-    let _state = make_move *)
