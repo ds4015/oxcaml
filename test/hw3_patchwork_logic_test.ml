@@ -1,6 +1,10 @@
 open! Core
 open Hw2_patchwork_logic
 
+let read_two () = 2
+let read_three () = 3
+let noop_print _ = ()
+
 (* Player *)
 (* test player creation and mutable field alteration *)
 
@@ -19,7 +23,8 @@ let%expect_test "create_player" =
 (* test the patch list generator - 33 patches total *)
 
 let%expect_test "init_patches" =
-  let pl : Patch.t list = Patch.init_patches in
+  let game_pieces = Game_pieces.setup_game "Dallas" "AI" "Red" "Blue" in
+  let pl = game_pieces.patch_pieces in
   let rec iter_patches patches =
     match patches with
     | [] -> ()
@@ -157,6 +162,18 @@ let pretty_print_qb (quilt_board : Game_board.quilt_board) =
     print_string "\n"
   done
 
+(*
+let pretty_print_patches (pl : Patch.t list) =
+  let open Printf in
+  let rec iter = function
+    | [] -> Out_channel.newline stdout
+    | ({ Patch.shape; cost; pos_around_board; _ } : Patch.t) :: tl ->
+        let s = Sexp.to_string_hum (Patch.sexp_of_patch_shape shape) in
+        printf "%s, cost: %d, pos_around_board: %d\n" s cost pos_around_board;
+        iter tl
+  in
+  iter pl *)
+
 let%expect_test "print_quilt_board" =
   let qb : Game_board.quilt_board = { squares = 9; filled_squares = [ (5, 4) ] } in
   pretty_print_qb qb;
@@ -240,29 +257,29 @@ let%expect_test "print_quilt_board" =
 (* Test Move 1: Advance Forward on Board *)
 
 let%expect_test "make_move_adv_forward" =
-  let mb : Game_board.main_board = { squares = 76; special_patch_locs = [] } in
-  let p1qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let p2qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let cache : Button.t = { unassigned_cache = 162 } in
-  let p1 : Player.t =
-    { player_num = 1; player_name = "Me"; buttons_owned = 5; score = 0 }
-  in
-  let p2 : Player.t =
-    { player_num = 2; player_name = "AI"; buttons_owned = 5; score = 0 }
-  in
-  let tk1 : Token.time_token = { position = 1; owned_by = p1; color = "Red" } in
-  let tk2 : Token.time_token = { position = 1; owned_by = p2; color = "Blue" } in
-  let nt : Token.neutral_token = { pos = 5 } in
-  let patches = Patch.init_patches in
+  let game_pieces = Game_pieces.setup_game "Dallas" "AI" "Red" "Blue" in
   let initial_state : Game_state.t =
-    { mb; p1qb; p2qb; bc = cache; turn = p1; tk1; tk2; neut = nt; patches }
+    {
+      mb = game_pieces.main_board;
+      p1qb = game_pieces.quilt_board1;
+      p2qb = game_pieces.quilt_board2;
+      bc = game_pieces.buttons;
+      patches_remaining = game_pieces.patches_remaining;
+      turn = game_pieces.player1;
+      tk1 = game_pieces.time_piece1;
+      tk2 = game_pieces.time_piece2;
+      neut = game_pieces.neutral_piece;
+      patches = game_pieces.patch_pieces;
+    }
   in
-  let updated_state : Game_state.t = Move.choose_move initial_state Advance 0 0 0 in
+  let updated_state : Game_state.t =
+    Move.choose_move read_two noop_print initial_state Advance 0 0
+  in
   print_s [%sexp (updated_state.tk1 : Token.time_token)];
   [%expect
     {|
     ((position 2)
-     (owned_by ((player_num 1) (player_name Me) (buttons_owned 6) (score 0)))
+     (owned_by ((player_num 1) (player_name Dallas) (buttons_owned 6) (score 0)))
      (color Red)) |}];
   print_s [%sexp (updated_state.turn : Player.t)];
   [%expect {| ((player_num 2) (player_name AI) (buttons_owned 5) (score 0)) |}]
@@ -270,41 +287,39 @@ let%expect_test "make_move_adv_forward" =
 (* Test Move 2: Purchase Patch and Place on Quilt Board, then Advance *)
 
 let%expect_test "make_move_place_patch" =
-  let mb : Game_board.main_board = { squares = 76; special_patch_locs = [] } in
-  let p1qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let p2qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let cache : Button.t = { unassigned_cache = 162 } in
-  let p1 : Player.t =
-    { player_num = 1; player_name = "Me"; buttons_owned = 5; score = 0 }
-  in
-  let p2 : Player.t =
-    { player_num = 2; player_name = "AI"; buttons_owned = 5; score = 0 }
-  in
-  let tk1 : Token.time_token = { position = 1; owned_by = p1; color = "Red" } in
-  let tk2 : Token.time_token = { position = 1; owned_by = p2; color = "Blue" } in
-  let nt : Token.neutral_token = { pos = 5 } in
-  let patches = Patch.init_patches in
-
+  let game_pieces = Game_pieces.setup_game "Dallas" "AI" "Red" "Blue" in
   let initial_state : Game_state.t =
-    { mb; p1qb; p2qb; bc = cache; turn = p1; tk1; tk2; neut = nt; patches }
+    {
+      mb = game_pieces.main_board;
+      p1qb = game_pieces.quilt_board1;
+      p2qb = game_pieces.quilt_board2;
+      bc = game_pieces.buttons;
+      turn = game_pieces.player1;
+      tk1 = game_pieces.time_piece1;
+      tk2 = game_pieces.time_piece2;
+      neut = game_pieces.neutral_piece;
+      patches = game_pieces.patch_pieces;
+      patches_remaining = game_pieces.patches_remaining;
+    }
   in
-  let updated_state : Game_state.t = Move.choose_move initial_state PlacePatch 4 5 19 in
+
+  let updated_state : Game_state.t =
+    Move.choose_move read_two noop_print initial_state PlacePatch 4 5
+  in
   print_s [%sexp (updated_state.tk1 : Token.time_token)];
-  [%expect
-    {|
-    ((position 3)
-     (owned_by ((player_num 1) (player_name Me) (buttons_owned 1) (score 0)))
-     (color Red)) |}];
   pretty_print_qb updated_state.p1qb;
   [%expect
     {|
+    ((position 4)
+     (owned_by ((player_num 1) (player_name Dallas) (buttons_owned 3) (score 0)))
+     (color Red))
     [ ][ ][ ][ ][ ][ ][ ][ ][ ]
     [ ][ ][ ][ ][ ][ ][ ][ ][ ]
     [ ][ ][ ][ ][ ][ ][ ][ ][ ]
     [ ][ ][ ][ ][X][ ][ ][ ][ ]
-    [ ][ ][ ][ ][X][ ][ ][ ][ ]
-    [ ][ ][ ][X][X][ ][ ][ ][ ]
-    [ ][ ][ ][ ][ ][ ][ ][ ][ ]
+    [ ][ ][ ][ ][X][X][ ][ ][ ]
+    [ ][ ][ ][ ][ ][X][ ][ ][ ]
+    [ ][ ][ ][ ][ ][X][ ][ ][ ]
     [ ][ ][ ][ ][ ][ ][ ][ ][ ]
     [ ][ ][ ][ ][ ][ ][ ][ ][ ]
     |}]
@@ -312,26 +327,26 @@ let%expect_test "make_move_place_patch" =
 (* Test Place Patch Move - Error: No more patches available *)
 
 let%expect_test "place_patch_error_no_more_patches" =
-  let mb : Game_board.main_board = { squares = 76; special_patch_locs = [] } in
-  let p1qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let p2qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let cache : Button.t = { unassigned_cache = 162 } in
-  let p1 : Player.t =
-    { player_num = 1; player_name = "Me"; buttons_owned = 5; score = 0 }
-  in
-  let p2 : Player.t =
-    { player_num = 2; player_name = "AI"; buttons_owned = 5; score = 0 }
-  in
-  let tk1 : Token.time_token = { position = 1; owned_by = p1; color = "Red" } in
-  let tk2 : Token.time_token = { position = 1; owned_by = p2; color = "Blue" } in
-  let nt : Token.neutral_token = { pos = 5 } in
-  let patches = [] in
+  let game_pieces = Game_pieces.setup_game "Dallas" "AI" "Red" "Blue" in
   let initial_state : Game_state.t =
-    { mb; p1qb; p2qb; bc = cache; turn = p1; tk1; tk2; neut = nt; patches }
+    {
+      mb = game_pieces.main_board;
+      p1qb = game_pieces.quilt_board1;
+      p2qb = game_pieces.quilt_board2;
+      bc = game_pieces.buttons;
+      turn = game_pieces.player1;
+      tk1 = game_pieces.time_piece1;
+      tk2 = game_pieces.time_piece2;
+      neut = game_pieces.neutral_piece;
+      patches = [];
+      patches_remaining = [];
+    }
   in
   let message =
     try
-      let _upd_state = Move.choose_move initial_state PlacePatch 4 5 19 in
+      let _upd_state =
+        Move.choose_move read_two noop_print initial_state PlacePatch 4 5
+      in
       "Success."
     with
     | Move.No_patches_left -> "Error: There are no more patches to purchase."
@@ -343,58 +358,75 @@ let%expect_test "place_patch_error_no_more_patches" =
 (* Test Place Patch Move - Error: Insufficient funds *)
 
 let%expect_test "place_patch_error_insufficient_funds" =
-  let mb : Game_board.main_board = { squares = 76; special_patch_locs = [] } in
-  let p1qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let p2qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let cache : Button.t = { unassigned_cache = 162 } in
-  let p1 : Player.t =
-    { player_num = 1; player_name = "Me"; buttons_owned = 5; score = 0 }
-  in
-  let p2 : Player.t =
-    { player_num = 2; player_name = "AI"; buttons_owned = 5; score = 0 }
-  in
-  let tk1 : Token.time_token = { position = 1; owned_by = p1; color = "Red" } in
-  let tk2 : Token.time_token = { position = 1; owned_by = p2; color = "Blue" } in
-  let nt : Token.neutral_token = { pos = 5 } in
-  let patches = Patch.init_patches in
+  let game_pieces = Game_pieces.setup_game "Dallas" "AI" "Red" "Blue" in
   let initial_state : Game_state.t =
-    { mb; p1qb; p2qb; bc = cache; turn = p1; tk1; tk2; neut = nt; patches }
+    {
+      mb = game_pieces.main_board;
+      p1qb = game_pieces.quilt_board1;
+      p2qb = game_pieces.quilt_board2;
+      bc = game_pieces.buttons;
+      turn = game_pieces.player1;
+      tk1 = game_pieces.time_piece1;
+      tk2 = game_pieces.time_piece2;
+      neut = game_pieces.neutral_piece;
+      patches = game_pieces.patch_pieces;
+      patches_remaining = game_pieces.patches_remaining;
+    }
   in
-  let message =
+  let upd_state, msg =
     try
-      let _upd_state = Move.choose_move initial_state PlacePatch 4 5 27 in
-      "Success."
+      (Move.choose_move read_two noop_print initial_state PlacePatch 4 5, "Success.")
     with
     | Button.Insufficient_funds ->
-        "Error: You do not have enough buttons to purchase that patch."
-    | exn -> "Unexpected: " ^ Exn.to_string exn
+        (initial_state, "Error: You do not have enough buttons to purchase that patch.")
+    | Move.Patch_already_taken ->
+        (initial_state, "Error: That patch was already taken.  Please choosen another.")
+    | _ -> (initial_state, "Unexpected error.")
   in
-  print_string message;
+  print_string msg;
+  [%expect {| Success. |}];
+  let _upd_state2, m2 =
+    try (Move.choose_move read_three noop_print upd_state PlacePatch 4 5, "Success.") with
+    | Button.Insufficient_funds ->
+        (upd_state, "Error: You do not have enough buttons to purchase that patch.")
+    | _ -> (upd_state, "Unexpected error.")
+  in
+  print_string m2;
+  [%expect {| Success. |}];
+  let _upd_state3, m3 =
+    try
+      ( Move.choose_move read_three noop_print _upd_state2 PlacePatch 1 2,
+        "Error: You do not have enough buttons to purchase that patch." )
+    with
+    | Button.Insufficient_funds ->
+        (_upd_state2, "Error: You do not have enough buttons to purchase that patch.")
+    | _ -> (_upd_state2, "Unexpected error.")
+  in
+  print_string m3;
   [%expect {| Error: You do not have enough buttons to purchase that patch. |}]
-
 (* Test Place Patch Move - Error: Chosen Position on Quilt Board Out of Bounds *)
 
 let%expect_test "place_patch_error_out_of_bounds" =
-  let mb : Game_board.main_board = { squares = 76; special_patch_locs = [] } in
-  let p1qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let p2qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let cache : Button.t = { unassigned_cache = 162 } in
-  let p1 : Player.t =
-    { player_num = 1; player_name = "Me"; buttons_owned = 5; score = 0 }
-  in
-  let p2 : Player.t =
-    { player_num = 2; player_name = "AI"; buttons_owned = 5; score = 0 }
-  in
-  let tk1 : Token.time_token = { position = 1; owned_by = p1; color = "Red" } in
-  let tk2 : Token.time_token = { position = 1; owned_by = p2; color = "Blue" } in
-  let nt : Token.neutral_token = { pos = 5 } in
-  let patches = Patch.init_patches in
+  let game_pieces = Game_pieces.setup_game "Dallas" "AI" "Red" "Blue" in
   let initial_state : Game_state.t =
-    { mb; p1qb; p2qb; bc = cache; turn = p1; tk1; tk2; neut = nt; patches }
+    {
+      mb = game_pieces.main_board;
+      p1qb = game_pieces.quilt_board1;
+      p2qb = game_pieces.quilt_board2;
+      bc = game_pieces.buttons;
+      turn = game_pieces.player1;
+      tk1 = game_pieces.time_piece1;
+      tk2 = game_pieces.time_piece2;
+      neut = game_pieces.neutral_piece;
+      patches = game_pieces.patch_pieces;
+      patches_remaining = game_pieces.patches_remaining;
+    }
   in
   let message =
     try
-      let _upd_state = Move.choose_move initial_state PlacePatch 4 1 19 in
+      let _upd_state =
+        Move.choose_move read_two noop_print initial_state PlacePatch 4 0
+      in
       pretty_print_qb _upd_state.p1qb;
       "Success."
     with
@@ -404,65 +436,30 @@ let%expect_test "place_patch_error_out_of_bounds" =
   print_string message;
   [%expect {| Error: That location on quilt board is out of bounds. |}]
 
-(* Test Place Patch Move - Error: Patch Choice Already Removed from Pool *)
-
-let%expect_test "place_patch_error_patch_already_taken" =
-  let mb : Game_board.main_board = { squares = 76; special_patch_locs = [] } in
-  let p1qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let p2qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let cache : Button.t = { unassigned_cache = 162 } in
-  let p1 : Player.t =
-    { player_num = 1; player_name = "Me"; buttons_owned = 15; score = 0 }
-  in
-  let p2 : Player.t =
-    { player_num = 2; player_name = "AI"; buttons_owned = 5; score = 0 }
-  in
-  let tk1 : Token.time_token = { position = 1; owned_by = p1; color = "Red" } in
-  let tk2 : Token.time_token = { position = 1; owned_by = p2; color = "Blue" } in
-  let nt : Token.neutral_token = { pos = 5 } in
-  let patches = Patch.init_patches in
-  let initial_state : Game_state.t =
-    { mb; p1qb; p2qb; bc = cache; turn = p1; tk1; tk2; neut = nt; patches }
-  in
-  let _upd_st = Move.choose_move initial_state PlacePatch 4 8 19 in
-  let message =
-    try
-      let _upd_state = Move.choose_move _upd_st PlacePatch 3 3 19 in
-      "Success."
-    with
-    | Move.Patch_already_taken ->
-        "Error: That patch was already taken.  Please choose another."
-    | exn -> "Unexpected: " ^ Exn.to_string exn
-  in
-  print_string message;
-  [%expect {| Error: That patch was already taken.  Please choose another. |}]
-
 (* Test Place Patch Move Series(x3) - Success -> Success -> Error: Patch Won't Fit in Chosen Location *)
 
 let%expect_test "place_patch_error_patch_does_not_fit" =
-  let mb : Game_board.main_board = { squares = 76; special_patch_locs = [] } in
-  let p1qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let p2qb : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-  let cache : Button.t = { unassigned_cache = 162 } in
-  let p1 : Player.t =
-    { player_num = 1; player_name = "Me"; buttons_owned = 17; score = 0 }
-  in
-  let p2 : Player.t =
-    { player_num = 2; player_name = "AI"; buttons_owned = 6; score = 0 }
-  in
-  let tk1 : Token.time_token = { position = 1; owned_by = p1; color = "Red" } in
-  let tk2 : Token.time_token = { position = 1; owned_by = p2; color = "Blue" } in
-  let nt : Token.neutral_token = { pos = 5 } in
-  let patches = Patch.init_patches in
+  let game_pieces = Game_pieces.setup_game "Dallas" "Red" "AI" "Blue" in
   let initial_state : Game_state.t =
-    { mb; p1qb; p2qb; bc = cache; turn = p1; tk1; tk2; neut = nt; patches }
+    {
+      mb = game_pieces.main_board;
+      p1qb = game_pieces.quilt_board1;
+      p2qb = game_pieces.quilt_board2;
+      bc = game_pieces.buttons;
+      turn = game_pieces.player1;
+      tk1 = game_pieces.time_piece1;
+      tk2 = game_pieces.time_piece2;
+      neut = game_pieces.neutral_piece;
+      patches = game_pieces.patch_pieces;
+      patches_remaining = game_pieces.patches_remaining;
+    }
   in
-  let st1 = Move.choose_move initial_state PlacePatch 4 8 6 in
-  print_s [%sexp (p1 : Player.t)];
-  [%expect {| ((player_num 1) (player_name Me) (buttons_owned 13) (score 0)) |}];
+  let st1 = Move.choose_move read_three noop_print initial_state PlacePatch 4 8 in
+  print_s [%sexp (initial_state.tk1.owned_by : Player.t)];
+  [%expect {| ((player_num 1) (player_name Dallas) (buttons_owned 3) (score 0)) |}];
   let msg1, st2 =
     try
-      let st2 = Move.choose_move st1 PlacePatch 4 8 19 in
+      let st2 = Move.choose_move read_two noop_print st1 PlacePatch 4 8 in
       ("Success.", st2)
     with
     | Game_board.Patch_does_not_fit_there ->
@@ -474,7 +471,7 @@ let%expect_test "place_patch_error_patch_does_not_fit" =
   [%expect {| Success. |}];
   let msg2 =
     try
-      let st3 = Move.choose_move st2 PlacePatch 4 8 4 in
+      let st3 = Move.choose_move read_two noop_print st2 PlacePatch 4 8 in
       pretty_print_qb st3.p1qb;
       "Success."
     with
