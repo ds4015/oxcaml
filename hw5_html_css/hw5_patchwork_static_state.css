@@ -1,3 +1,11 @@
+:root {
+    --n: 9;
+    --patch-grid-size: 60vmin;
+    --cursor-min: 12px;
+    --cursor-ideal: 7vmin;
+    --cursor-max: 87.5px;
+}
+
 .container {
     display: none;
     grid-template-columns: 1fr 1.5fr 1fr;
@@ -23,6 +31,25 @@
     justify-self: center;
     align-self: center;
 }
+
+#cursor-patch-img {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: clamp(
+        calc(var(--cursor-min) * var(--cols, 1)),
+        calc(var(--cursor-ideal) * var(--cols, 1)),
+        calc(var(--cursor-max) * var(--cols, 1))
+    );
+    height: auto;
+    pointer-events: none;
+    transition: transform 0.1s ease-out;
+    will-change: transform;
+    transform: translate(calc(var(--x, 0px)), calc(var(--y, 0px)))
+        translate(-20%, -20%);
+}
+
 .header {
     grid-column: 1 / span 3;
 }
@@ -154,11 +181,6 @@
     pointer-events: none;
 }
 
-:root {
-    --n: 9;
-    --size: 60vmin;
-    --gap: 0.5vmin;
-}
 .patch_chosen {
     display: none;
     min-height: 100dvh;
@@ -166,12 +188,11 @@
     background-color: #f6f6f6;
 }
 .qb_replica {
-    width: var(--size);
-    height: var(--size);
+    width: var(--patch-grid-size);
+    height: var(--patch-grid-size);
     display: grid;
     grid-template-columns: repeat(var(--n), 1fr);
     grid-template-rows: repeat(var(--n), 1fr);
-    gap: var(--gap);
     background: #fff;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
 }
@@ -179,13 +200,17 @@
 .replica-cell {
     background-color: #f1f1f1;
     border: 2px dashed black;
-    padding: 10px;
-    --row: -1;
-    --col: -1;
 }
 
 .replica-cell:hover {
     background-color: #ffd54d;
+}
+
+@media (max-width: 480px) {
+    :root {
+        --cursor-ideal: 5vmin;
+        --cursor-max: 40px;
+    }
 }
 
 .mb_overlay {
