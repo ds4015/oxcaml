@@ -1,11 +1,5 @@
 open! Core
 
-let default_read_int () =
-  Out_channel.flush stdout;
-  In_channel.input_line_exn In_channel.stdin |> Int.of_string
-
-let default_print s = print_string s
-
 (* Players *)
 
 module Player = struct
@@ -64,6 +58,7 @@ module Patch = struct
     pos_around_board : int;
     move_num : int;
     income : int;
+    mutable rotated : int;
   }
   [@@deriving sexp, compare, equal]
 
@@ -72,7 +67,7 @@ module Patch = struct
     | Square -> [ (2, "R"); (1, "D"); (1, "L") ]
     | SquareNub -> [ (3, "D"); (1, "L"); (1, "U") ]
     | SquareHighFive -> [ (2, "D"); (1, "R"); (1, "U"); (1, "R"); (1, "U") ]
-    | TCross -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (2, "D") ]
+    | TCross -> [ (3, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (2, "D") ]
     | S -> [ (2, "L"); (2, "D"); (1, "L") ]
     | LongI -> [ (5, "D") ]
     | LHalfH -> [ (2, "D"); (3, "R"); (1, "U") ]
@@ -98,7 +93,7 @@ module Patch = struct
     | ChunkyZig -> [ (3, "D"); (1, "SU"); (1, "L"); (2, "D") ]
     | Cross -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (2, "D") ]
     | INub -> [ (3, "D"); (1, "L"); (1, "SR"); (1, "D") ]
-    | WideStubbyT -> [ (2, "R"); (1, "D"); (1, "U"); (1, "R") ]
+    | WideStubbyT -> [ (2, "R"); (1, "D"); (1, "SU"); (1, "R") ]
     | Prong -> [ (2, "D"); (1, "L"); (1, "D"); (1, "SU"); (1, "SR"); (1, "R"); (1, "D") ]
     | Vine -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "D"); (1, "R"); (1, "SL"); (1, "D") ]
     | WidePlus ->
@@ -106,6 +101,48 @@ module Patch = struct
           (2, "R"); (1, "D"); (1, "R"); (1, "SL"); (1, "D"); (1, "L"); (1, "U"); (1, "L");
         ]
     | Empty -> []
+
+  let rotate (p : t) =
+    if p.rotated = 0 then
+      match p.shape with
+      | Square -> [ (2, "R"); (1, "D"); (1, "L") ]
+      | SquareNub -> [ (2, "L"); (1, "U"); (1, "L"); (1, "D") ]
+      | SquareHighFive -> [ (2, "L"); (2, "U"); (1, "L"); (1, "D") ]
+      | TCross -> [ (1, "D"); (2, "L"); (2, "SR"); (1, "R"); (1, "SL"); (1, "D") ]
+      | S -> [ (2, "D"); (2, "R"); (1, "D") ]
+      | LongI -> [ (5, "R") ]
+      | LHalfH -> [ (2, "L"); (3, "D"); (1, "R") ]
+      | SHalfH -> [ (2, "L"); (2, "D"); (1, "R") ]
+      | H -> [ (3, "R"); (1, "SL"); (2, "D"); (1, "L"); (1, "SR"); (1, "R") ]
+      | Corner -> [ (2, "R"); (1, "U") ]
+      | CornerRev -> [ (2, "L"); (1, "D") ]
+      | SLVert -> [ (2, "L"); (1, "D"); (2, "L") ]
+      | ShortI -> [ (3, "R") ]
+      | I -> [ (4, "R") ]
+      | LRev -> [ (2, "D"); (2, "R") ]
+      | LongL -> [ (4, "L"); (1, "D") ]
+      | L -> [ (3, "L"); (1, "D") ]
+      | ChunkyLRev -> [ (2, "L"); (1, "D"); (3, "R") ]
+      | SmallI -> [ (2, "R") ]
+      | ShortT -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "D") ]
+      | StubbyT -> [ (2, "D"); (2, "L"); (2, "SR"); (1, "D") ]
+      | T -> [ (2, "D"); (3, "L"); (3, "SR"); (1, "D") ]
+      | Plus -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (1, "D") ]
+      | Zig -> [ (2, "L"); (1, "D"); (1, "L") ]
+      | ZigZag -> [ (2, "D"); (1, "L"); (1, "D"); (1, "L") ]
+      | ZigRev -> [ (2, "R"); (1, "D"); (1, "R") ]
+      | ChunkyZig -> [ (3, "R"); (1, "D"); (2, "R") ]
+      | Cross -> [ (2, "D"); (1, "R"); (1, "SL"); (2, "L"); (2, "SR"); (1, "D") ]
+      | INub -> [ (2, "D"); (1, "L"); (1, "SR"); (2, "R") ]
+      | WideStubbyT -> [ (2, "R"); (1, "D"); (1, "SU"); (1, "R") ]
+      | Prong -> [ (2, "R"); (1, "D"); (1, "R"); (1, "SL"); (1, "D"); (1, "L") ]
+      | Vine -> [ (2, "D"); (1, "R"); (1, "SL"); (2, "L"); (1, "SR"); (1, "D") ]
+      | WidePlus ->
+          [
+            (2, "D"); (1, "L"); (1, "D"); (1, "R"); (1, "D"); (1, "SU"); (1, "R"); (1, "U");
+          ]
+      | Empty -> []
+    else get_patch_dim p.shape
 
   let get_values p =
     match p with
@@ -180,6 +217,43 @@ module Patch = struct
     | Vine -> 0
     | WidePlus -> 1
     | Empty -> 0
+
+  let get_col_row p =
+    match p with
+    | Square -> (2, 2)
+    | SquareNub -> (2, 3)
+    | SquareHighFive -> (3, 3)
+    | TCross -> (3, 5)
+    | S -> (3, 5)
+    | LongI -> (1, 5)
+    | LHalfH -> (4, 2)
+    | SHalfH -> (3, 2)
+    | H -> (3, 3)
+    | Corner -> (2, 2)
+    | CornerRev -> (2, 2)
+    | SLVert -> (2, 4)
+    | ShortI -> (1, 3)
+    | LRev -> (2, 3)
+    | LongL -> (2, 4)
+    | L -> (2, 3)
+    | ChunkyLRev -> (2, 4)
+    | SmallI -> (1, 2)
+    | I -> (1, 4)
+    | ShortT -> (3, 2)
+    | StubbyT -> (3, 3)
+    | T -> (3, 4)
+    | Plus -> (3, 3)
+    | Zig -> (2, 3)
+    | ZigZag -> (3, 3)
+    | ZigRev -> (2, 4)
+    | ChunkyZig -> (2, 4)
+    | Cross -> (3, 4)
+    | INub -> (2, 4)
+    | WideStubbyT -> (4, 2)
+    | Prong -> (3, 3)
+    | Vine -> (3, 4)
+    | WidePlus -> (3, 3)
+    | Empty -> (0, 0)
 
   let shapes =
     [
@@ -257,6 +331,7 @@ module Patch = struct
             cost = fst patch_attr;
             move_num = snd patch_attr;
             income = patch_inc;
+            rotated = 0;
           }
         in
         let pl_updated = patch :: patches in
@@ -267,7 +342,15 @@ module Patch = struct
   let find_initial_neut_pos pl =
     let rec iter_patch_list = function
       | [] -> 1
-      | { shape = Corner; pos_around_board; cost = _; move_num = _; income = _ } :: _ ->
+      | {
+          shape = Corner;
+          pos_around_board;
+          cost = _;
+          move_num = _;
+          income = _;
+          rotated = _;
+        }
+        :: _ ->
           pos_around_board
       | _ :: tl -> iter_patch_list tl
     in
@@ -280,7 +363,11 @@ module Game_board = struct
   type main_board = { squares : int; special_patch_locs : int list }
   [@@deriving sexp, compare, equal]
 
-  type quilt_board = { squares : int; filled_squares : (int * int) list }
+  type quilt_board = {
+    squares : int;
+    filled_squares : (int * int) list;
+    patches : (int * int * Patch.patch_shape) list;
+  }
   [@@deriving sexp, compare, equal]
 
   type t = MainBoard of main_board | QuiltBoard of quilt_board
@@ -384,7 +471,9 @@ module Game_board = struct
             let nc = snd head in
             process_patch t qb new_filled nr nc (acc + 1)
       in
-      process_patch dim board board.filled_squares r c 1
+      let qb_upd = process_patch dim board board.filled_squares r c 1 in
+      let patches_in_place = qb_upd.patches in
+      { qb_upd with patches = (r, c, patch) :: patches_in_place }
     else raise Patch_does_not_fit_there
 end
 
@@ -513,8 +602,12 @@ module Game_pieces = struct
     let neut_pos = Patch.find_initial_neut_pos patches in
     let neutral = { Token.pos = neut_pos } in
     let main_board : Game_board.main_board = { squares = 64; special_patch_locs = [] } in
-    let quilt_board_1 : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
-    let quilt_board_2 : Game_board.quilt_board = { squares = 9; filled_squares = [] } in
+    let quilt_board_1 : Game_board.quilt_board =
+      { squares = 9; filled_squares = []; patches = [] }
+    in
+    let quilt_board_2 : Game_board.quilt_board =
+      { squares = 9; filled_squares = []; patches = [] }
+    in
     let b : Button.t = { unassigned_cache = 152 } in
     let game_pieces =
       {
@@ -532,21 +625,6 @@ module Game_pieces = struct
       }
     in
     game_pieces
-
-  let get_input_line () =
-    Out_channel.flush stdout;
-    In_channel.input_line_exn In_channel.stdin
-
-  let gather_info () =
-    print_string "Please enter player 1's name: ";
-    let p1_name = get_input_line () in
-    print_string "Please enter player 1's token color: ";
-    let p1_color = get_input_line () in
-    print_string "Please enter player 2's name: ";
-    let p2_name = get_input_line () in
-    print_string "Please enter player 2's token color: ";
-    let p2_color = get_input_line () in
-    (p1_name, p1_color, p2_name, p2_color)
 end
 
 (* Game State *)
@@ -613,18 +691,16 @@ module Move = struct
           | _ -> hd
         else take_patch tl choice
 
-  exception Invalid_patch_choice
-
-  let choose_patch ?(read_int = default_read_int) ?(pp = default_print) (c1, c2, c3) =
-    pp "Please choose a patch: \n";
-    pp (Printf.sprintf "\t1: %d\n\t2: %d\n\t3: %d" c1 c2 c3);
-    match read_int () with
+  (*
+              exception Invalid_patch_choice
+  let choose_patch choice c1 c2 c3 =
+    match choice with
     | 1 -> c1
     | 2 -> c2
     | 3 -> c3
-    | _ -> raise Invalid_patch_choice
+    | _ -> raise Invalid_patch_choice*)
 
-  let choose_move rint pr state mv r c =
+  let choose_move state mv patch_choice r c =
     let player_moving = state.Game_state.turn in
     let player = player_moving.player_num in
     let p1t = state.Game_state.tk1 in
@@ -662,13 +738,10 @@ module Move = struct
           in
           upd_st
     | PlacePatch ->
-        let neut_pos = neut.pos in
-        let o1, o2, o3 = Patch.get_three neut_pos remaining_patches in
-        let choice = choose_patch ~read_int:rint ~pp:pr (o1, o2, o3) in
-        let p = take_patch patches choice in
-        let pps = pl_remove_at choice patches in
-        let upd_rem_list = reml_remove_at choice remaining_patches in
-        let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c in
+        let p = take_patch patches patch_choice in
+        let pps = pl_remove_at patch_choice patches in
+        let upd_rem_list = reml_remove_at patch_choice remaining_patches in
+        let qb = Game_board.place_patch_on_quilt_board pqb p.shape (r - 1) (c - 1) in
         Button.take_buttons state.bc player_moving p.cost;
         let new_token =
           Token.move_token_after_patch (if player = 1 then p1t else p2t) p.move_num
@@ -682,7 +755,7 @@ module Move = struct
           else if p1t.position < new_token.position then p1t.owned_by
           else p2t.owned_by
         in
-        let updated_neut = Token.move_neut_token (p.pos_around_board + 1) in
+        let updated_neut = Token.move_neut_token (p.pos_around_board - 1) in
         let upd_state =
           if player = 1 then
             Game_state.update state qb state.p2qb state.bc next_turn new_token p2t
@@ -694,9 +767,8 @@ module Move = struct
         upd_state
 end
 
-let _init () =
-  let name1, color1, name2, color2 = Game_pieces.gather_info () in
-  let pieces = Game_pieces.setup_game name1 color1 name2 color2 in
+let _init pname =
+  let pieces = Game_pieces.setup_game pname "AI" "Red" "Blue" in
   {
     Game_state.bc = pieces.buttons;
     Game_state.mb = pieces.main_board;

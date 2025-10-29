@@ -58,8 +58,14 @@ module Patch : sig
     pos_around_board : int;
     move_num : int;
     income : int;
+    mutable rotated : int
   }
   [@@deriving sexp, compare, equal]
+
+  val rotate : t -> (int * string) list
+  val get_three : int -> int list -> (int * int * int)
+  val get_col_row : patch_shape -> int * int
+  val get_values : patch_shape -> int * int
 end
 
 (* Game Boards *)
@@ -68,7 +74,7 @@ module Game_board : sig
   type main_board = { squares : int; special_patch_locs : int list }
   [@@deriving sexp, compare, equal]
 
-  type quilt_board = { squares : int; filled_squares : (int * int) list }
+  type quilt_board = { squares : int; filled_squares : (int * int) list; patches : (int * int * Patch.patch_shape) list }
   [@@deriving sexp, compare, equal]
 
   type t = MainBoard of main_board | QuiltBoard of quilt_board
@@ -148,7 +154,7 @@ module Move : sig
 
   (* Choose to advance or take/place patch, returns updated game state *)
   val choose_move :
-    (unit -> int) -> (string -> unit) -> Game_state.t -> t -> int -> int -> Game_state.t
+    Game_state.t -> t -> int -> int -> int -> Game_state.t
 end
 
-val _init : unit -> Game_state.t
+val _init : string -> Game_state.t
