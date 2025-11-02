@@ -1,5 +1,21 @@
 (library
- (name tictactoe_logic_library)
+ (name hw2_patchwork_logic)
+ (public_name hw2_patchwork_logic)
+ (wrapped false)
+ (modules hw2_patchwork_logic)
  (libraries core)
- (preprocess
-  (pps ppx_jane)))
+ (preprocess (pps ppx_jane)))
+
+ (library
+  (name hw4_patchwork_ai_heuristics)
+  (wrapped false)
+  (modules hw4_patchwork_ai_heuristics)
+  (libraries core hw2_patchwork_logic js_of_ocaml)
+  (preprocess (pps js_of_ocaml-ppx ppx_jane)))
+
+  (library
+  (name patchwork_logic_library)
+  (wrapped false)
+  (modules patchwork_logic_library)
+  (libraries core hw2_patchwork_logic hw4_patchwork_ai_heuristics)
+  (preprocess (pps ppx_jane)))
