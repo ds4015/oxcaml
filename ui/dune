@@ -1,5 +1,6 @@
 (executable
- (name main)
+ (name patchwork_ui)
+ (modules patchwork_ui)
  (modes js)
  (preprocess (pps js_of_ocaml-ppx))
  (libraries patchwork_logic_library core js_of_ocaml))

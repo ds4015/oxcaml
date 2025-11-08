@@ -64,37 +64,37 @@ module Patch = struct
 
   let get_patch_dim p =
     match p with
-    | Square -> [ (2, "R"); (1, "D"); (1, "L") ]
-    | SquareNub -> [ (3, "D"); (1, "L"); (1, "U") ]
-    | SquareHighFive -> [ (2, "D"); (1, "R"); (1, "U"); (1, "R"); (1, "U") ]
-    | TCross -> [ (3, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (2, "D") ]
-    | S -> [ (2, "L"); (2, "D"); (1, "L") ]
-    | LongI -> [ (5, "D") ]
-    | LHalfH -> [ (2, "D"); (3, "R"); (1, "U") ]
-    | SHalfH -> [ (2, "D"); (2, "R"); (1, "U") ]
-    | H -> [ (3, "D"); (1, "SU"); (2, "R"); (1, "U"); (1, "SD"); (1, "D") ]
-    | Corner -> [ (2, "R"); (1, "D") ]
-    | CornerRev -> [ (2, "D"); (1, "R") ]
-    | SLVert -> [ (2, "D"); (1, "R"); (2, "D") ]
-    | ShortI -> [ (3, "D") ]
-    | I -> [ (4, "D") ]
-    | LRev -> [ (3, "D"); (1, "L") ]
-    | LongL -> [ (4, "D"); (1, "R") ]
-    | L -> [ (3, "D"); (1, "R") ]
-    | ChunkyLRev -> [ (4, "D"); (1, "L"); (1, "U") ]
-    | SmallI -> [ (2, "D") ]
-    | ShortT -> [ (2, "R"); (1, "D"); (1, "SU"); (1, "R") ]
+    | Square -> [ (1, "R"); (1, "D"); (1, "L") ]
+    | SquareNub -> [ (1, "D"); (1, "R"); (2, "U") ]
+    | SquareHighFive -> [ (1, "D"); (1, "R"); (1, "U"); (1, "R"); (1, "U") ]
+    | TCross -> [ (1, "R"); (2, "U"); (2, "SD"); (1, "R"); (1, "SL"); (2, "D") ]
+    | S -> [ (1, "R"); (4, "U"); (1, "R") ]
+    | LongI -> [ (4, "D") ]
+    | LHalfH -> [ (1, "D"); (3, "R"); (1, "U") ]
+    | SHalfH -> [ (1, "D"); (2, "R"); (1, "U") ]
+    | H -> [ (2, "D"); (1, "SU"); (2, "R"); (1, "U"); (1, "SD"); (1, "D") ]
+    | Corner -> [ (1, "R"); (1, "D") ]
+    | CornerRev -> [ (1, "D"); (1, "R") ]
+    | SLVert -> [ (1, "D"); (1, "R"); (2, "D") ]
+    | ShortI -> [ (2, "D") ]
+    | I -> [ (3, "D") ]
+    | LRev -> [ (1, "R"); (2, "U") ]
+    | LongL -> [ (3, "D"); (1, "R") ]
+    | L -> [ (2, "D"); (1, "R") ]
+    | ChunkyLRev -> [ (1, "D"); (1, "R"); (2, "U") ]
+    | SmallI -> [ (1, "D") ]
+    | ShortT -> [ (1, "R"); (1, "D"); (1, "SU"); (1, "R") ]
     | StubbyT -> [ (3, "R"); (1, "SL"); (2, "D") ]
-    | T -> [ (3, "R"); (1, "SL"); (3, "D") ]
-    | Plus -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (1, "D") ]
-    | Zig -> [ (2, "D"); (1, "R"); (1, "D") ]
-    | ZigZag -> [ (2, "R"); (1, "D"); (1, "R"); (1, "D") ]
-    | ZigRev -> [ (2, "D"); (1, "L"); (1, "D") ]
-    | ChunkyZig -> [ (3, "D"); (1, "SU"); (1, "L"); (2, "D") ]
-    | Cross -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (2, "D") ]
-    | INub -> [ (3, "D"); (1, "L"); (1, "SR"); (1, "D") ]
-    | WideStubbyT -> [ (2, "R"); (1, "D"); (1, "SU"); (1, "R") ]
-    | Prong -> [ (2, "D"); (1, "L"); (1, "D"); (1, "SU"); (1, "SR"); (1, "R"); (1, "D") ]
+    | T -> [ (2, "R"); (1, "SL"); (3, "D") ]
+    | Plus -> [ (1, "R"); (1, "U"); (1, "SD"); (1, "R"); (1, "SL"); (1, "D") ]
+    | Zig -> [ (1, "U"); (1, "SD"); (1, "R"); (1, "D") ]
+    | ZigZag -> [ (1, "R"); (1, "D"); (1, "R"); (1, "D") ]
+    | ZigRev -> [ (1, "D"); (1, "SU"); (1, "R"); (1, "U") ]
+    | ChunkyZig -> [ (1, "R"); (1, "U"); (1, "SD"); (1, "D"); (1, "L"); (1, "D") ]
+    | Cross -> [ (1, "R"); (2, "U"); (2, "SD"); (1, "R"); (1, "SL"); (2, "D") ]
+    | INub -> [ (1, "R"); (1, "D"); (1, "SU"); (2, "U") ]
+    | WideStubbyT -> [ (1, "R"); (1, "D"); (1, "SU"); (1, "R") ]
+    | Prong -> [ (1, "D"); (1, "SU"); (1, "R"); (2, "U"); (2, "SD"); (1, "R"); (1, "D") ]
     | Vine -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "D"); (1, "R"); (1, "SL"); (1, "D") ]
     | WidePlus ->
         [
@@ -119,21 +119,21 @@ module Patch = struct
       | SLVert -> [ (2, "L"); (1, "D"); (2, "L") ]
       | ShortI -> [ (3, "R") ]
       | I -> [ (4, "R") ]
-      | LRev -> [ (2, "D"); (2, "R") ]
+      | LRev -> [ (1, "R"); (2, "U") ]
       | LongL -> [ (4, "L"); (1, "D") ]
       | L -> [ (3, "L"); (1, "D") ]
-      | ChunkyLRev -> [ (2, "L"); (1, "D"); (3, "R") ]
+      | ChunkyLRev -> [ (1, "D"); (1, "R"); (2, "U") ]
       | SmallI -> [ (2, "R") ]
       | ShortT -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "D") ]
       | StubbyT -> [ (2, "D"); (2, "L"); (2, "SR"); (1, "D") ]
       | T -> [ (2, "D"); (3, "L"); (3, "SR"); (1, "D") ]
       | Plus -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "R"); (1, "SL"); (1, "D") ]
-      | Zig -> [ (2, "L"); (1, "D"); (1, "L") ]
+      | Zig -> [ (1, "U"); (1, "SD"); (1, "R"); (1, "D") ]
       | ZigZag -> [ (2, "D"); (1, "L"); (1, "D"); (1, "L") ]
       | ZigRev -> [ (2, "R"); (1, "D"); (1, "R") ]
       | ChunkyZig -> [ (3, "R"); (1, "D"); (2, "R") ]
       | Cross -> [ (2, "D"); (1, "R"); (1, "SL"); (2, "L"); (2, "SR"); (1, "D") ]
-      | INub -> [ (2, "D"); (1, "L"); (1, "SR"); (2, "R") ]
+      | INub -> [ (1, "R"); (1, "D"); (1, "SU"); (3, "U") ]
       | WideStubbyT -> [ (2, "R"); (1, "D"); (1, "SU"); (1, "R") ]
       | Prong -> [ (2, "R"); (1, "D"); (1, "R"); (1, "SL"); (1, "D"); (1, "L") ]
       | Vine -> [ (2, "D"); (1, "R"); (1, "SL"); (2, "L"); (1, "SR"); (1, "D") ]
@@ -247,10 +247,10 @@ module Patch = struct
     | ZigZag -> (3, 3)
     | ZigRev -> (2, 4)
     | ChunkyZig -> (2, 4)
-    | Cross -> (3, 4)
-    | INub -> (2, 4)
-    | WideStubbyT -> (4, 2)
-    | Prong -> (3, 3)
+    | Cross -> (3, 5)
+    | INub -> (2, 5)
+    | WideStubbyT -> (2, 4)
+    | Prong -> (3, 4)
     | Vine -> (3, 4)
     | WidePlus -> (3, 3)
     | Empty -> (0, 0)
@@ -292,31 +292,67 @@ module Patch = struct
       WidePlus;
     ]
 
-  let rec get_three i rem_list =
-    let start_over rl n =
-      if n = 1 then
-        match rl with
-        | [] -> (0, 0)
-        | a :: _ -> (a, 0)
-      else
-        match rl with
-        | a :: b :: _ -> (a, b)
-        | _ -> (0, 0)
+  let get_area patch =
+    match patch with
+    | Square -> 4
+    | SquareNub -> 5
+    | SquareHighFive -> 6
+    | TCross -> 6
+    | S -> 7
+    | LongI -> 5
+    | LHalfH -> 6
+    | SHalfH -> 5
+    | H -> 7
+    | Corner -> 3
+    | CornerRev -> 3
+    | SLVert -> 5
+    | ShortI -> 3
+    | LRev -> 4
+    | LongL -> 5
+    | L -> 4
+    | ChunkyLRev -> 6
+    | SmallI -> 2
+    | I -> 4
+    | ShortT -> 4
+    | StubbyT -> 5
+    | T -> 6
+    | Plus -> 5
+    | Zig -> 4
+    | ZigZag -> 5
+    | ZigRev -> 4
+    | ChunkyZig -> 6
+    | Cross -> 7
+    | INub -> 6
+    | WideStubbyT -> 6
+    | Prong -> 7
+    | Vine -> 6
+    | WidePlus -> 8
+    | Empty -> 0
+
+  let rec index_to_patch (patches : t list) i =
+    match patches with
+    | [] ->
+        {
+          shape = Empty;
+          pos_around_board = -1;
+          cost = 0;
+          move_num = 0;
+          income = 0;
+          rotated = 0;
+        }
+    | hd :: tl -> if hd.pos_around_board = i then hd else index_to_patch tl i
+
+  exception No_patches_left
+
+  let rec get_one i rem_list orig_rl =
+    let start_over rl =
+      match rl with
+      | [] -> raise No_patches_left
+      | hd :: _ -> hd
     in
     match rem_list with
-    | hd :: tl ->
-        if hd = i then
-          match tl with
-          | a :: b :: c :: _ -> (a, b, c)
-          | [ a; b ] ->
-              let c = fst (start_over rem_list 1) in
-              (a, b, c)
-          | a :: [] ->
-              let b, c = start_over rem_list 2 in
-              (a, b, c)
-          | [] -> (0, 0, 0)
-        else get_three i tl
-    | [] -> (0, 0, 0)
+    | hd :: tl -> if hd > i then hd else get_one i tl orig_rl
+    | [] -> start_over orig_rl
 
   let rec build_patch_set shapes (patches : t list) acc =
     match shapes with
@@ -376,6 +412,18 @@ module Game_board = struct
   exception Out_of_bounds
   exception Patch_does_not_fit_there
 
+  (* let print_filled_slots (board : quilt_board) =
+    let filled = board.filled_squares in
+    let rec iter f =
+      match f with
+      | [] -> print_string "Done"
+      | hd :: tl ->
+          print_string (string_of_int (fst hd) ^ ", " ^ string_of_int (snd hd) ^ "\n");
+          iter tl
+    in
+    iter filled
+    *)
+  (*
   let rec check_patch_squares (f : (int * int) list) qb sr sc dir acc =
     if acc < 1 then (sr, sc)
     else
@@ -407,7 +455,113 @@ module Game_board = struct
         | "SL" -> (sr, sc - 1)
         | "SR" -> (sr, sc + 1)
         | _ -> (-1, -1)
-      else (-1, -1)
+      else (-1, -1) *)
+
+  let check_if_patch_fits dim board start_row start_col =
+    let rec is_square_in_filled_squares f r c =
+      match f with
+      | [] -> false
+      | hd :: tl ->
+          if r = fst hd && c = snd hd then true else is_square_in_filled_squares tl r c
+    in
+
+    let rec check_each_patch_cell dim r c =
+      let row = ref r in
+      let col = ref c in
+      let does_it_fit = ref true in
+      match dim with
+      | [] -> !does_it_fit
+      | (num, dir) :: tl ->
+          for _i = 0 to num - 1 do
+            if !does_it_fit then (
+              (match dir with
+              | "D" ->
+                  row := !row + 1;
+                  if !row > 9 || !row < 1 then does_it_fit := false else ()
+              | "U" ->
+                  row := !row - 1;
+                  if !row > 9 || !row < 1 then does_it_fit := false else ()
+              | "L" ->
+                  col := !col - 1;
+                  if !col > 9 || !col < 1 then does_it_fit := false else ()
+              | "R" ->
+                  col := !col + 1;
+                  if !col > 9 || !col < 1 then does_it_fit := false else ()
+              | "SU" -> row := !row - 1
+              | "SL" -> col := !col - 1
+              | "SR" -> col := !col + 1
+              | "SD" -> row := !row + 1
+              | _ -> ());
+              if is_square_in_filled_squares board.filled_squares !row !col then
+                does_it_fit := false)
+          done;
+          if !does_it_fit then check_each_patch_cell tl !row !col else false
+    in
+    if is_square_in_filled_squares board.filled_squares start_row start_col then false
+    else check_each_patch_cell dim start_row start_col
+
+  (*
+
+    print_string "Checking if patch fits...\n Current filled slots:\n";
+    print_filled_slots board;
+    let process_dir num dir acc =
+      let rec loop i r c acc =
+        if i = 0 then acc
+        else
+          match dir with
+          | "D" ->
+              print_string ("checking " ^ string_of_int (r + 1) ^ ", " ^ string_of_int col);
+              loop (i - 1) (r + 1) c ((r + 1, c) :: acc)
+          | "U" ->
+              print_string ("checking " ^ string_of_int (r - 1) ^ ", " ^ string_of_int col);
+              loop (i - 1) (r - 1) c ((r - 1, c) :: acc)
+          | "L" ->
+              print_string ("checking " ^ string_of_int row ^ ", " ^ string_of_int (c - 1));
+              loop (i - 1) r (c - 1) ((r, c - 1) :: acc)
+          | "R" ->
+              print_string ("checking " ^ string_of_int row ^ ", " ^ string_of_int (c + 1));
+              loop (i - 1) r (c + 1) ((r, c + 1) :: acc)
+          | "SL" -> acc
+          | "SU" -> acc
+          | "SR" -> acc
+          | "SD" -> acc
+          | _ -> failwith "Invalid dir"
+      in
+      loop num row col acc
+    in
+    let rec process_dims dims acc =
+      match dims with
+      | [] -> acc
+      | (n, d) :: tl ->
+          let acc' = process_dir n d acc in
+          process_dims tl acc'
+    in
+
+    let rec check_filled f slot =
+      let r, c = slot in
+      match f with
+      | [] -> true
+      | (row, col) :: tl -> if r = row && c = col then false else check_filled tl slot
+    in
+
+    let squares_to_be_filled_with_placement = process_dims dim [ (row, col) ] in
+    let filled = board.filled_squares in
+    let rec iter_tbf to_be_filled =
+      match to_be_filled with
+      | [] -> true
+      | hd :: tl ->
+          print_string
+            ("fill row: "
+            ^ string_of_int (fst hd)
+            ^ ", fill col: "
+            ^ string_of_int (snd hd)
+            ^ "\n");
+          if not (check_filled filled hd) then false else iter_tbf tl
+    in
+    print_string "Squares to be filled...\n";
+    iter_tbf squares_to_be_filled_with_placement *)
+
+  (*
 
   let rec check_if_patch_fits patchDim board row col =
     match patchDim with
@@ -418,62 +572,56 @@ module Game_board = struct
           check_patch_squares board.filled_squares board row col d q
         in
         if upd_row = -1 && upd_col = -1 then false
-        else check_if_patch_fits tl board upd_row upd_col
+        else check_if_patch_fits tl board upd_row upd_col *)
 
   let place_patch_on_quilt_board board patch r c =
     let dim = Patch.get_patch_dim patch in
+    let min_row = ref r in
+    let min_col = ref c in
+    let min = ref (r, c) in
 
     if check_if_patch_fits dim board r c then
-      let rec process_dir r c dir filled acc =
-        if acc > 0 then
-          if r > board.squares || c > board.squares || r < 1 || c < 1 then
-            raise Out_of_bounds
-          else
-            let nf = (r, c) :: filled in
-            match dir with
-            | "D" -> process_dir (r + 1) c dir nf (acc - 1)
-            | "U" -> process_dir (r - 1) c dir nf (acc - 1)
-            | "L" -> process_dir r (c - 1) dir nf (acc - 1)
-            | "R" -> process_dir r (c + 1) dir nf (acc - 1)
-            | _ -> nf
-        else filled
-      in
-
-      let rec process_patch patch qb nf r c acc =
-        let extract_head l =
-          match l with
-          | [] -> (-1, -1)
-          | hd :: _ -> hd
-        in
-        match patch with
-        | [] ->
-            let upd_quilt_board = { board with filled_squares = nf } in
-            upd_quilt_board
-        | hd :: t ->
-            let mv, dir = hd in
-            let nr, nc =
-              if acc > 1 then
-                if String.equal dir "D" then (r + 1, c)
-                else if String.equal dir "U" then (r - 1, c)
-                else if String.equal dir "L" then (r, c - 1)
-                else if String.equal dir "R" then (r, c + 1)
-                else if String.equal dir "SD" then (r + 1, c)
-                else if String.equal dir "SU" then (r - 1, c)
-                else if String.equal dir "SL" then (r, c - 1)
-                else if String.equal dir "SR" then (r, c + 1)
-                else (r, c)
-              else (r, c)
+      let rec fill_in_new_patch dim cur_r cur_c acc =
+        match dim with
+        | [] -> acc
+        | (num, dir) :: tl ->
+            let rec walk n r c acc =
+              if n = 0 then (r, c, acc)
+              else
+                let r', c' =
+                  match dir with
+                  | "D"
+                  | "SD" ->
+                      (r + 1, c)
+                  | "U"
+                  | "SU" ->
+                      if r - 1 < !min_row then (
+                        min_row := r - 1;
+                        min := (r - 1, c))
+                      else ();
+                      (r - 1, c)
+                  | "L"
+                  | "SL" ->
+                      if c - 1 < !min_col then (
+                        min_col := c - 1;
+                        min := (r, c - 1))
+                      else ();
+                      (r, c - 1)
+                  | "R"
+                  | "SR" ->
+                      (r, c + 1)
+                  | _ -> (r, c)
+                in
+                walk (n - 1) r' c' ((r', c') :: acc)
             in
-
-            let new_filled = process_dir nr nc dir nf mv in
-            let head = extract_head new_filled in
-            let nr = fst head in
-            let nc = snd head in
-            process_patch t qb new_filled nr nc (acc + 1)
+            let new_r, new_c, acc' = walk num cur_r cur_c acc in
+            fill_in_new_patch tl new_r new_c acc'
       in
-      let qb_upd = process_patch dim board board.filled_squares r c 1 in
-      let patches_in_place = qb_upd.patches in
-      { qb_upd with patches = (r, c, patch) :: patches_in_place }
+      let new_filled = fill_in_new_patch dim r c ((r, c) :: board.filled_squares) in
+      let old_pip = board.patches in
+      let new_pip = (!min_row, !min_col, patch) :: old_pip in
+      let qb_upd = { board with filled_squares = new_filled; patches = new_pip } in
+      qb_upd
     else raise Patch_does_not_fit_there
 end
 
@@ -574,6 +722,9 @@ module Game_pieces = struct
         28;
         29;
         30;
+        31;
+        32;
+        33;
       ]
     in
     let player_1 =
@@ -618,7 +769,7 @@ module Game_pieces = struct
         neutral_piece = neutral;
         patch_pieces = patches;
         patches_remaining = remaining;
-        main_board;
+        main_board = main_board;
         quilt_board1 = quilt_board_1;
         quilt_board2 = quilt_board_2;
         buttons = b;
@@ -656,6 +807,20 @@ module Game_state = struct
       neut;
       patches = p;
       patches_remaining = rem;
+    }
+
+  let initialize_state (pieces : Game_pieces.t) =
+    {
+      bc = pieces.buttons;
+      mb = pieces.main_board;
+      neut = pieces.neutral_piece;
+      p1qb = pieces.quilt_board1;
+      p2qb = pieces.quilt_board2;
+      patches = pieces.patch_pieces;
+      patches_remaining = pieces.patches_remaining;
+      tk1 = pieces.time_piece1;
+      tk2 = pieces.time_piece2;
+      turn = pieces.player1;
     }
 end
 
@@ -741,7 +906,7 @@ module Move = struct
         let p = take_patch patches patch_choice in
         let pps = pl_remove_at patch_choice patches in
         let upd_rem_list = reml_remove_at patch_choice remaining_patches in
-        let qb = Game_board.place_patch_on_quilt_board pqb p.shape (r - 1) (c - 1) in
+        let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c in
         Button.take_buttons state.bc player_moving p.cost;
         let new_token =
           Token.move_token_after_patch (if player = 1 then p1t else p2t) p.move_num
@@ -765,19 +930,16 @@ module Move = struct
               updated_neut pps upd_rem_list
         in
         upd_state
-end
 
-let _init pname =
-  let pieces = Game_pieces.setup_game pname "AI" "Red" "Blue" in
-  {
-    Game_state.bc = pieces.buttons;
-    Game_state.mb = pieces.main_board;
-    Game_state.neut = pieces.neutral_piece;
-    Game_state.p1qb = pieces.quilt_board1;
-    Game_state.p2qb = pieces.quilt_board2;
-    Game_state.patches = pieces.patch_pieces;
-    Game_state.patches_remaining = pieces.patches_remaining;
-    Game_state.tk1 = pieces.time_piece1;
-    Game_state.tk2 = pieces.time_piece2;
-    Game_state.turn = pieces.player1;
-  }
+  let score_game (state : Game_state.t) =
+    if state.tk1.position < 53 || state.tk2.position < 53 then (-1, -1)
+    else
+      let p1_buttons = state.tk1.owned_by.buttons_owned in
+      let p2_buttons = state.tk2.owned_by.buttons_owned in
+      let p1_empty_squares = 81 - List.length state.p1qb.filled_squares in
+      let p2_empty_squares = 81 - List.length state.p2qb.filled_squares in
+      (abs (p1_buttons - p1_empty_squares), abs (p2_buttons - p2_empty_squares))
+
+  let check_advance_move_valid (opp_tt : Token.time_token) pos =
+    if pos = opp_tt.position + 1 then true else false
+end

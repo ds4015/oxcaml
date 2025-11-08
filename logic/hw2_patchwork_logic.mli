@@ -58,14 +58,17 @@ module Patch : sig
     pos_around_board : int;
     move_num : int;
     income : int;
-    mutable rotated : int
+    mutable rotated : int;
   }
   [@@deriving sexp, compare, equal]
 
   val rotate : t -> (int * string) list
-  val get_three : int -> int list -> (int * int * int)
+  val get_one : int -> int list -> int list -> int
   val get_col_row : patch_shape -> int * int
+  val index_to_patch : t list -> int -> t
   val get_values : patch_shape -> int * int
+  val get_area : patch_shape -> int
+  val get_patch_dim : patch_shape -> (int * string) list
 end
 
 (* Game Boards *)
@@ -74,7 +77,11 @@ module Game_board : sig
   type main_board = { squares : int; special_patch_locs : int list }
   [@@deriving sexp, compare, equal]
 
-  type quilt_board = { squares : int; filled_squares : (int * int) list; patches : (int * int * Patch.patch_shape) list }
+  type quilt_board = {
+    squares : int;
+    filled_squares : (int * int) list;
+    patches : (int * int * Patch.patch_shape) list;
+  }
   [@@deriving sexp, compare, equal]
 
   type t = MainBoard of main_board | QuiltBoard of quilt_board
@@ -82,6 +89,8 @@ module Game_board : sig
 
   exception Out_of_bounds
   exception Patch_does_not_fit_there
+
+  val check_if_patch_fits : (int * string) list -> quilt_board -> int -> int -> bool
 end
 
 (* Buttons *)
@@ -142,6 +151,8 @@ module Game_state : sig
     patches_remaining : int list;
   }
   [@@deriving sexp, compare, equal]
+
+  val initialize_state : Game_pieces.t -> t
 end
 
 (* Move *)
@@ -153,8 +164,7 @@ module Move : sig
   exception Patch_already_taken
 
   (* Choose to advance or take/place patch, returns updated game state *)
-  val choose_move :
-    Game_state.t -> t -> int -> int -> int -> Game_state.t
+  val choose_move : Game_state.t -> t -> int -> int -> int -> Game_state.t
+  val score_game : Game_state.t -> int * int
+  val check_advance_move_valid : Token.time_token -> int -> bool
 end
-
-val _init : string -> Game_state.t

@@ -1,7 +1,7 @@
 open! Core
 open Hw2_patchwork_logic
 open Js_of_ocaml
-module C = Console
+module C = Js_of_ocaml.Firebug
 
 let log s = C.console##log (Js.string s)
 

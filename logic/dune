@@ -1,6 +1,5 @@
 (library
  (name hw2_patchwork_logic)
- (public_name hw2_patchwork_logic)
  (wrapped false)
  (modules hw2_patchwork_logic)
  (libraries core)

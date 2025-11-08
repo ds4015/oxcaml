@@ -1,7 +1,7 @@
 open! Js_of_ocaml
+open Hw2_patchwork_logic
 open Patchwork_logic_library
-open Patchwork
-module C = Js_of_ocaml.Console
+module C = Js_of_ocaml.Firebug
 
 let log s = C.(console##log (Js.string s))
 let no_priority : Js.js_string Js.t Js.optdef = Js.undefined
@@ -15,7 +15,7 @@ let unwrap_exn opt =
   | Some x -> x
   | None -> failwith "Tried to unwrap None"
 
-let patch_img_overlay_offests (p : Patch.patch_shape) =
+let patch_img_overlay_offests (p : Hw2_patchwork_logic.Patch.patch_shape) =
   match p with
   | Square -> (25.0, 25.0)
   | SquareNub -> (25.0, 82.0)
@@ -203,7 +203,7 @@ let preload_images () =
       Dom.appendChild preload_div img)
     svgs
 
-let initialize_game pname = _init pname
+let initialize_game pname = let (gp : Hw2_patchwork_logic.Game_pieces.t) = Game_pieces.setup_game pname "AI" "Red" "Blue" in Game_state.initialize_state gp
 let current_state : Game_state.t option ref = ref None
 let pending_patch_index : int option ref = ref None
 let cursor_switch : bool ref = ref false
@@ -214,8 +214,9 @@ let cursor_rot_deg : int ref = ref 0
 
 let _delay_ms ms f =
   ignore
-    (Dom_html.window##setTimeout (Js.wrap_callback f)
-       (Js.number_of_float (float_of_int ms)))
+    (Dom_html.window##setTimeout
+       (Js.wrap_callback f)
+       (float_of_int ms))
 
 let create_quilt_board_grid () =
   let qb_rep = Dom_html.getElementById_exn "qb_replica" in
@@ -440,11 +441,16 @@ let flash_button_anim button_up_id button_num =
   ignore button_up##.offsetWidth;
   button_up##.classList##add (Js.string "visible");
   ignore
-    (Dom_html.window##setTimeout
-       (Js.wrap_callback (fun () ->
-            wrapper##.classList##remove (Js.string "visible");
-            img##.classList##remove (Js.string "red-tint")))
-       (Js.number_of_float 2000.))
+    (Js.Unsafe.meth_call
+       Dom_html.window
+       "setTimeout"
+       [|
+         Js.Unsafe.inject
+           (Js.wrap_callback (fun () ->
+                wrapper##.classList##remove (Js.string "visible");
+                img##.classList##remove (Js.string "red-tint")));
+         Js.Unsafe.inject 2000.0
+       |])
 
 let paint_quilt_board (qb : Game_board.quilt_board) qb_repl ext_qb =
   let x_base = 11.5 in
@@ -580,7 +586,10 @@ let announce_winner w name p1score p2score =
         (Js.string
            ("Score: " ^ string_of_int p1score ^ " vs AI score " ^ string_of_int p2score)));
   results_div##.style##.display := Js.string "flex";
-  results_div##.style##.opacity := Js.string "1"
+  results_div##.style##setProperty
+    (Js.string "opacity")
+    (Js.string "1")
+    no_priority |> ignore
 
 let set_patch_choice_srcs () =
   let p1_img = Dom_html.getElementById_exn "patch1_image" in
@@ -656,17 +665,17 @@ let _move_id =
              (Dom_html.CoerceTo.mouseEvent (ev :> Dom_html.event Js.t))
              (fun () -> Js._true)
              (fun e ->
-               let px (n : Js.number Js.t) =
-                 Printf.sprintf "%gpx" (Js.float_of_number n)
+               let px (n : float) =
+                 Printf.sprintf "%gpx" n
                in
                cursor_img##.style##setProperty
                  (Js.string "--x")
-                 (Js.string (px e##.clientX))
+                 (Js.string (px (float_of_int(e##.clientX))))
                  no_priority
                |> ignore;
                cursor_img##.style##setProperty
                  (Js.string "--y")
-                 (Js.string (px e##.clientY))
+                 (Js.string (px (float_of_int(e##.clientY))))
                  no_priority
                |> ignore;
                Js._true)))
@@ -730,7 +739,7 @@ let rec play_ai_turn () =
         log "AI TURN";
         let quilt_board_replica_id = Dom_html.getElementById_exn "qb_replica" in
         let current_player = st.turn in
-        let ai_move, pos, row, col = Ai_module.determine_move st in
+        let ai_move, pos, row, col = Hw4_patchwork_ai_heuristics.determine_move st in
         let old_buttons = current_player.buttons_owned in
         let old_neut_pos = st.neut.pos in
         current_state := Some (Move.choose_move st ai_move pos row col);
