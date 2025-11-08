@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Patchwork</title>
+        <link rel="stylesheet" href="style3d.css" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Kranky&display=swap"
+            rel="stylesheet"
+        />
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+                    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <div id="patchwork_game">
+            <div class="container ui-font">
+                <canvas id="three-js-canvas"></canvas>
+                <span id="player-box-1" class="player-box-1">
+                    Player 1
+                    <span id="p1-buttons" class="p1-buttons">x 5</span>
+                </span>
+
+                <span id="player-box-2" class="player-box-2">
+                    Player 2
+                    <span id="p2-buttons" class="p2-buttons">x 5</span>
+                </span>
+            </div>
+            <div id="status-message" class="status-message ui-font">
+                Status Message
+            </div>
+        </div>
+        <script type="module" src="patchwork_three.js"></script>
+        <script src="generated_js/component.bc.js"></script>
+    </body>
+</html>

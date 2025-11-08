@@ -1,0 +1,96 @@
+.container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#three-js-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 0;
+}
+
+.ui-font {
+    font-family: "Kranky", serif;
+    font-weight: 400;
+    font-size: clamp(1.5rem, 3vw, 5rem);
+    font-style: normal;
+}
+
+.player_details {
+    position: absolute;
+    top: 1rem;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 1rem;
+    pointer-events: none;
+}
+
+.player-box-1 {
+    position: relative;
+    top: 2%;
+    left: 2%;
+    pointer-events: auto;
+    z-index: 100;
+}
+
+.player-box-2 {
+    position: relative;
+    top: 2%;
+    left: 73%;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+.player_details .player-box:last-child {
+    margin-left: auto;
+}
+
+.p1-buttons {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    pointer-events: none;
+}
+.p2-buttons {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    pointer-events: none;
+}
+
+.status-message {
+    background-image: linear-gradient(to right, #87ceeb, #747880);
+    width: 30vw;
+    white-space: no-wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: clamp(0.5rem, 3vw, 1.5rem);
+    height: 2vh;
+    border: 2px dashed #000000;
+    text-align: center;
+    padding: 10px;
+    z-index: 100;
+    position: absolute;
+    top: 5%;
+    opacity: 0.6;
+    left: 38%;
+    animation: fadeout 1s linear;
+}
+
+@keyframes fadeout {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}

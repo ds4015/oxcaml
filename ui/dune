@@ -1,6 +1,5 @@
 (executable
- (name patchwork_ui)
- (modules patchwork_ui)
+ (name component)
  (modes js)
- (preprocess (pps js_of_ocaml-ppx))
- (libraries patchwork_logic_library core js_of_ocaml))
+ (preprocess (pps js_of_ocaml-ppx bonsai.ppx_bonsai ppx_jane))
+ (libraries patchwork_logic_library core bonsai.web virtual_dom js_of_ocaml))
