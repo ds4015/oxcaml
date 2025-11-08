@@ -25,4 +25,4 @@ let game_component =
   dim_ineligible_patches neutral_position;
   Vdom.Node.none
 
-let () = Start.start ~bind_to_element_with_id:"patchwork_game" game_component
+let () = Start.start ~bind_to_element_with_id:"ocaml-root" game_component

@@ -1038,22 +1038,21 @@ renderer.setAnimationLoop(animate);
 window.dimIneligiblePatches = function (pos) {
     console.log(pos);
     for (let i = 0; i < patches.children.length; i++) {
-        let color = patches.children[i].children[0].material.color;
-        let dimmed = new THREE.MeshBasicMaterial({
-            color: color,
-            transparent: true,
-            wireframe: true,
-            opacity: 0.5,
-        });
-        let norm = patches.children[i].children[0].material;
-
         if (i + 1 != pos && i + 1 != pos + 1 && i + 1 != pos + 2) {
             patches.children[i].traverse((obj) => {
-                if (obj.isMesh) obj.material = dimmed;
+                if (obj.isMesh) {
+                    obj.material.transparent = true;
+                    obj.material.opacity = 0.5;
+                    obj.material.wireframe = true;
+                }
             });
         } else {
             patches.children[i].traverse((obj) => {
-                if (obj.isMesh) obj.material = norm;
+                if (obj.isMesh) {
+                    obj.material.transparent = false;
+                    obj.material.opacity = 1;
+                    obj.material.wireframe = false;
+                }
             });
         }
     }
