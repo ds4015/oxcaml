@@ -875,14 +875,14 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
         object_outlined = null;
     }
 
-    /* outlines */
+    /* outlines
     if (hits.length > 0) {
         const chosen = hits[0].object;
         console.log(chosen);
         object_outlined = outline_object(chosen);
         object_outlined.position.x += chosen.parent.position.x;
         scene.add(object_outlined);
-    }
+    } */
 
     /* patch select overlay */
     if (patch_hits.length > 0) {
@@ -931,6 +931,19 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     }
 });
 
+renderer.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
+renderer.domElement.addEventListener("pointerdown", (e) => {
+    if (e.button === 2) {
+        if (placing) {
+            console.log("rotated");
+            patch_clone.rotation.z -= Math.PI / 2;
+            if (patch_clone.rotation.z < 0)
+                patch_clone.rotation.z += 2 * Math.PI;
+            console.log(patch_clone.rotation.z);
+        }
+    }
+});
+
 renderer.domElement.addEventListener("pointerup", () => {
     if (!dragging) return;
     if (manipulating != null) {
@@ -976,7 +989,7 @@ scene.add(p2_quilt_board);
 
 function create_quilt_board(color) {
     const qb = new THREE.Group();
-    const q_board_geo = new THREE.PlaneGeometry(1.15, 1.15);
+    const q_board_geo = new THREE.PlaneGeometry(1.1, 1.1);
     const q_board_m = new THREE.MeshBasicMaterial({
         color: color,
         side: THREE.DoubleSide,
@@ -984,10 +997,10 @@ function create_quilt_board(color) {
     const q_board = new THREE.Mesh(q_board_geo, q_board_m);
     qb.add(q_board);
 
-    let row_offset = 0;
-    for (let i = 0; i < 10; i++) {
-        let col_offset = 0;
-        for (let j = 0; j < 10; j++) {
+    let row_offset = -0.055;
+    for (let i = 0; i < 9; i++) {
+        let col_offset = 0.055;
+        for (let j = 0; j < 9; j++) {
             const qb_cell_geo = new THREE.BoxGeometry(0.09, 0.09, 0.01);
             const qb_cell_m = new THREE.MeshBasicMaterial({ color: 0xc0c0c0 });
             const qb_cell = new THREE.Mesh(qb_cell_geo, qb_cell_m);
