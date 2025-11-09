@@ -36,11 +36,11 @@ document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.update();
-const camStart = new THREE.Vector3();
-const camLookAt = new THREE.Vector3(0, 0, 0);
-const currentLookAt = new THREE.Vector3(0, 0, 0);
-let camTarget = new THREE.Vector3();
-let camTargetLookAt = new THREE.Vector3();
+let camStart = new THREE.Vector3(0, 0, 0);
+let camStartLookAt = new THREE.Vector3(0, 0, 0);
+let camTarget = new THREE.Vector3(0, 0, 0);
+let camTargetLookAt = new THREE.Vector3(0, 0, 0);
+let currentLookAt = new THREE.Vector3(0, 0, 0);
 let animating = false;
 camera.position.z = 2.3;
 camera2.position.z = 5.3;
@@ -101,6 +101,19 @@ objLoader.load("img3d/uvsphere_3.obj", (obj) => {
     scene.add(obj);
     scene2.add(skydome2);
 });
+
+/* quilt board close buttons */
+const close_button = new THREE.Group();
+const big_back_g = new THREE.BoxGeometry(0.07, 0.07, 0.02);
+const big_back_m = new THREE.MeshBasicMaterial({ color: 0x9b9bc2 });
+const big_back = new THREE.Mesh(big_back_g, big_back_m);
+const little_back_g = new THREE.BoxGeometry(0.06, 0.06, 0.02);
+const little_back_m = new THREE.MeshBasicMaterial({ color: 0xff004d });
+const little_back = new THREE.Mesh(little_back_g, little_back_m);
+big_back.position.set(-2.8, 0.65, 0);
+little_back.position.set(-2.8, 0.65, 0.01);
+close_button.add(big_back);
+close_button.add(little_back);
 
 /* UI button currency icons */
 const b1 = make_button(0.05, 0.15);
@@ -724,6 +737,7 @@ create_patches();
 scene.add(patches);
 let patches2 = patches.clone(true);
 scene2.add(patches2);
+let patch_clone = null;
 
 function create_patches() {
     const patch_cell_geo = new THREE.BoxGeometry(0.06, 0.06, 0.012);
@@ -795,6 +809,7 @@ function create_patches() {
                 patch.position.set(0, 0, 0);
                 patch.rotation.z = Math.PI;
                 patch.rotation.y = Math.PI;
+                patch.userData = { pos: i, orig_rot: patch.rotation.clone() };
                 patches.add(patch);
             }
         }
@@ -820,7 +835,9 @@ function create_patches() {
 }
 
 /* drag tokens */
-let dragging = null;
+let manipulating = null;
+let dragging = false;
+let placing = false;
 let dragOffset = new THREE.Vector3();
 const worldPos = new THREE.Vector3();
 let dragZ = 0;
@@ -849,6 +866,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const patch_hits = raycaster.intersectObjects(patch_clickables, true);
     const drag_hits = raycaster.intersectObjects(draggable, true);
 
+    const close_button_hits = raycaster.intersectObject(close_button, true);
+
     if (object_outlined) {
         scene.remove(object_outlined);
         object_outlined.geometry.dispose();
@@ -868,38 +887,63 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     /* patch select overlay */
     if (patch_hits.length > 0) {
         const chosen = patch_hits[0].object;
+        placing = true;
         console.log(chosen);
         highlight_patch(chosen.parent);
         let camTarget = new THREE.Vector3(-2.2, 0, 1);
         let camTargetLookAt = new THREE.Vector3(-2.2, 0, 0);
         moveCam(camTarget, camTargetLookAt);
-        console.log(camera.position);
+        patch_clone = chosen.parent.clone(true);
+        patch_clone.rotation.set(chosen.parent.userData.orig_rot);
+        patch_clone.position.set(-2.2, 0, 0.02);
+        patch_clone.rotation.set(0, 0, 0);
+        patch_clone.scale.set(1.8, 1.8, 0);
+        dragZ = 0.02;
+        scene.add(patch_clone);
+        manipulating = patch_clone;
+        scene.add(close_button);
+        toggle_orbit_controls("off");
     }
 
     /* drag time token */
     if (drag_hits.length > 0) {
         const hit = drag_hits[0];
-        dragging = hit.object;
-        dragging.scale.multiplyScalar(1.5);
-        dragZ = dragging.position.z;
-        toggle_orbit_controls("off");
-        dragging.getWorldPosition(worldPos);
 
+        dragging = true;
+        manipulating = hit.object;
+        manipulating.scale.multiplyScalar(1.5);
+        dragZ = manipulating.position.z;
+        toggle_orbit_controls("off");
+        manipulating.getWorldPosition(worldPos);
         dragOffset.copy(hit.point).sub(worldPos);
+    }
+
+    if (close_button_hits.length > 0) {
+        console.log("close button clicked");
+        moveCam(
+            new THREE.Vector3(0, 0, 2.3),
+            new THREE.Vector3(0, 0, 0),
+            false,
+        );
+        destroy_mesh(patch_clone);
+        scene.remove(close_button);
+        toggle_orbit_controls("on");
     }
 });
 
 renderer.domElement.addEventListener("pointerup", () => {
-    if (dragging != null) {
-        get_cell_under_token(dragging);
-        if (dragging != null) dragging.scale.multiplyScalar(1 / 1.5);
+    if (!dragging) return;
+    if (manipulating != null) {
+        get_cell_under_token(manipulating);
+        if (manipulating != null) manipulating.scale.multiplyScalar(1 / 1.5);
     }
-    dragging = null;
+    manipulating = null;
     toggle_orbit_controls("on");
+    dragging = false;
 });
 
 renderer.domElement.addEventListener("pointermove", (event) => {
-    if (!dragging) return;
+    if (!manipulating) return;
 
     const rect = renderer.domElement.getBoundingClientRect();
 
@@ -910,14 +954,14 @@ renderer.domElement.addEventListener("pointermove", (event) => {
 
     if (raycaster.ray.intersectPlane(intersectionPlane, intersectionPoint)) {
         intersectionPoint.sub(dragOffset);
-        const parent = dragging.parent;
+        const parent = manipulating.parent;
         if (parent) {
             parent.worldToLocal(intersectionPoint);
             intersectionPoint.z = dragZ;
-            dragging.position.copy(intersectionPoint);
+            manipulating.position.copy(intersectionPoint);
         } else {
             intersectionPoint.z = dragZ;
-            dragging.position.copy(intersectionPoint);
+            manipulating.position.copy(intersectionPoint);
         }
     }
 });
@@ -929,9 +973,6 @@ scene.add(p1_quilt_board);
 const p2_quilt_board = create_quilt_board(new THREE.Color(0xff0000));
 p2_quilt_board.position.x = 2.2;
 scene.add(p2_quilt_board);
-//toggle_element(board, "off");
-//toggle_element(patches, "off");
-//toggle_element(table, "off");
 
 function create_quilt_board(color) {
     const qb = new THREE.Group();
@@ -1038,6 +1079,37 @@ function outline_object(obj) {
     return outline;
 }
 
+/* delete mesh, free resources, remove from scene */
+function destroy_mesh(mesh) {
+    if (mesh.isGroup) {
+        mesh.traverse((obj) => {
+            if (obj.isMesh) {
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) {
+                        obj.material.forEach((m) => m.dispose());
+                    } else {
+                        obj.material.dispose();
+                    }
+                }
+            }
+        });
+        if (mesh.parent) mesh.parent.remove(mesh);
+    } else {
+        if (mesh.isMesh) {
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) {
+                if (Array.isArray(mesh.material)) {
+                    mesh.material.forEach((m) => m.dispose());
+                } else {
+                    mesh.material.dispose();
+                }
+            }
+        }
+        if (mesh.parent) mesh.parent.remove(mesh);
+    }
+}
+
 function get_cell_under_token(tk) {
     console.log("get_cell_under_token called");
     const token_pos = tk.position;
@@ -1061,7 +1133,7 @@ function get_cell_under_token(tk) {
 
 function moveCam(pos, lookAt) {
     camStart.copy(camera.position);
-    camLookAt.copy(currentLookAt);
+    camStartLookAt.copy(currentLookAt);
     camTarget.copy(pos);
     camTargetLookAt.copy(lookAt);
     tShift = 0;
@@ -1120,7 +1192,7 @@ function animate() {
             animating = false;
         }
         camera.position.lerpVectors(camStart, camTarget, tShift);
-        currentLookAt.lerpVectors(camLookAt, camTargetLookAt, tShift);
+        currentLookAt.lerpVectors(camStartLookAt, camTargetLookAt, tShift);
         camera.lookAt(currentLookAt);
     }
 
