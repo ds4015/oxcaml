@@ -35,17 +35,19 @@
 }
 
 .player-box-1 {
-    position: relative;
+    position: absolute;
     top: 2%;
-    left: 2%;
+    left: 7%;
+    width: 20vw;
     pointer-events: auto;
     z-index: 100;
 }
 
 .player-box-2 {
-    position: relative;
+    position: absolute;
     top: 2%;
-    left: 73%;
+    left: 80%;
+    width: 20vw;
     z-index: 100;
     pointer-events: auto;
 }
@@ -57,7 +59,7 @@
 .p1-buttons {
     position: absolute;
     top: 100%;
-    left: 50%;
+    left: 0%;
     pointer-events: none;
 }
 .p2-buttons {
@@ -68,22 +70,39 @@
 }
 
 .status-message {
+    display: none;
     background-image: linear-gradient(to right, #87ceeb, #747880);
-    width: 30vw;
+    width: 25vw;
     white-space: no-wrap;
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: clamp(0.5rem, 3vw, 1.5rem);
     height: 2vh;
-    border: 2px dashed #000000;
+    border: 1px dashed #000000;
     text-align: center;
-    padding: 10px;
+    padding: 12px;
     z-index: 100;
     position: absolute;
     top: 5%;
-    opacity: 0.6;
+    opacity: 1;
     left: 38%;
-    animation: fadeout 1s linear;
+}
+
+.buy-patch {
+    background-image: linear-gradient(to right, #87ceeb, #747880);
+    position: absolute;
+    display: block;
+    width: 20vw;
+    height: 10vh;
+    padding: 3vw;
+    z-index: 100;
+    top: 50%;
+    left: 30%;
+}
+
+.status-message.show {
+    display: block;
+    animation: fadeout 1.5s linear 1s;
 }
 
 @keyframes fadeout {
@@ -92,5 +111,6 @@
     }
     to {
         opacity: 0;
+        display: none;
     }
 }

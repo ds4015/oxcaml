@@ -8,6 +8,8 @@ import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
 
 /* setup  */
 const scene = new THREE.Scene();
@@ -34,7 +36,12 @@ document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.update();
-
+const camStart = new THREE.Vector3();
+const camLookAt = new THREE.Vector3(0, 0, 0);
+const currentLookAt = new THREE.Vector3(0, 0, 0);
+let camTarget = new THREE.Vector3();
+let camTargetLookAt = new THREE.Vector3();
+let animating = false;
 camera.position.z = 2.3;
 camera2.position.z = 5.3;
 camera2.position.y = 4;
@@ -162,6 +169,7 @@ const mat = new THREE.MeshBasicMaterial({ map: texture });
 const cube = new THREE.Mesh(geometry, mat);
 
 const main_board_cells = [];
+const board_cell_position_numbers = [];
 const single_patches = [];
 
 const board = new THREE.Group();
@@ -213,7 +221,13 @@ function create_grid_cells() {
 
     // rows 1, 3
     full_singles_row(8, 0);
+    for (let i = 6; i < 14; i++) board_cell_position_numbers.push(i);
     full_singles_row(8, 2);
+    board_cell_position_numbers.push(4);
+    board_cell_position_numbers.push(30);
+    for (let i = 46; i < 50; i++) board_cell_position_numbers.push(i);
+    board_cell_position_numbers.push(36);
+    board_cell_position_numbers.push(15);
 
     // row 2
     const r2c1 = new THREE.Mesh(single, m);
@@ -244,39 +258,49 @@ function create_grid_cells() {
     main_board_cells.push(r2c6);
     main_board_cells.push(r2c7);
     main_board_cells.push(r2c8);
+    board_cell_position_numbers.push(5);
+    for (let i = 31; i < 36; i++) board_cell_position_numbers.push(i);
+    board_cell_position_numbers.push(14);
 
     // row 4
-    const r3c1 = new THREE.Mesh(single, m);
-    r3c1.position.set(-0.455 + 0 * 0.13, 0.455 - 0.13 * 3);
-    const r3c2 = new THREE.Mesh(single, m);
-    r3c2.position.set(-0.455 + 1 * 0.13, 0.455 - 0.13 * 3);
-    const r3c3 = new THREE.Mesh(double, m);
-    r3c3.position.set(-0.455 + 2 * 0.13, 0.455 - 0.13 * 3.25);
-    r3c3.rotation.z = 1.57079;
-    const r3c4 = new THREE.Mesh(end_zone, m);
-    r3c4.position.set(-0.455 + 3.49 * 0.13, 0.455 - 0.13 * 3.49);
-    const r3c6 = new THREE.Mesh(double, m);
-    r3c6.position.set(-0.455 + 5 * 0.13, 0.455 - 0.13 * 3.25);
-    r3c6.rotation.z = 1.57079;
-    const r3c7 = new THREE.Mesh(single, m);
-    r3c7.position.set(-0.455 + 6 * 0.13, 0.455 - 0.13 * 3);
-    const r3c8 = new THREE.Mesh(single, m);
-    r3c8.position.set(-0.455 + 7 * 0.13, 0.455 - 0.13 * 3);
+    const r4c1 = new THREE.Mesh(single, m);
+    r4c1.position.set(-0.455 + 0 * 0.13, 0.455 - 0.13 * 3);
+    const r4c2 = new THREE.Mesh(single, m);
+    r4c2.position.set(-0.455 + 1 * 0.13, 0.455 - 0.13 * 3);
+    const r4c3 = new THREE.Mesh(double, m);
+    r4c3.position.set(-0.455 + 2 * 0.13, 0.455 - 0.13 * 3.25);
+    r4c3.rotation.z = 1.57079;
+    const r4c4 = new THREE.Mesh(end_zone, m);
+    r4c4.position.set(-0.455 + 3.49 * 0.13, 0.455 - 0.13 * 3.49);
+    const r4c6 = new THREE.Mesh(double, m);
+    r4c6.position.set(-0.455 + 5 * 0.13, 0.455 - 0.13 * 3.25);
+    r4c6.rotation.z = 1.57079;
+    const r4c7 = new THREE.Mesh(single, m);
+    r4c7.position.set(-0.455 + 6 * 0.13, 0.455 - 0.13 * 3);
+    const r4c8 = new THREE.Mesh(single, m);
+    r4c8.position.set(-0.455 + 7 * 0.13, 0.455 - 0.13 * 3);
 
-    board.add(r3c1);
-    board.add(r3c2);
-    board.add(r3c3);
-    board.add(r3c4);
-    board.add(r3c6);
-    board.add(r3c7);
-    board.add(r3c8);
-    main_board_cells.push(r3c1);
-    main_board_cells.push(r3c2);
-    main_board_cells.push(r3c3);
-    main_board_cells.push(r3c4);
-    main_board_cells.push(r3c6);
-    main_board_cells.push(r3c7);
-    main_board_cells.push(r3c8);
+    board.add(r4c1);
+    board.add(r4c2);
+    board.add(r4c3);
+    board.add(r4c4);
+    board.add(r4c6);
+    board.add(r4c7);
+    board.add(r4c8);
+    main_board_cells.push(r4c1);
+    main_board_cells.push(r4c2);
+    main_board_cells.push(r4c3);
+    main_board_cells.push(r4c4);
+    main_board_cells.push(r4c6);
+    main_board_cells.push(r4c7);
+    main_board_cells.push(r4c8);
+    board_cell_position_numbers.push(3);
+    board_cell_position_numbers.push(29);
+    board_cell_position_numbers.push(45);
+    board_cell_position_numbers.push(-1);
+    board_cell_position_numbers.push(50);
+    board_cell_position_numbers.push(37);
+    board_cell_position_numbers.push(16);
 
     // row 5
     const r5c1 = new THREE.Mesh(single, m);
@@ -307,6 +331,12 @@ function create_grid_cells() {
     main_board_cells.push(r5c6);
     main_board_cells.push(r5c7);
     main_board_cells.push(r5c8);
+    board_cell_position_numbers.push(2);
+    board_cell_position_numbers.push(28);
+    board_cell_position_numbers.push(44);
+    board_cell_position_numbers.push(51);
+    board_cell_position_numbers.push(38);
+    board_cell_position_numbers.push(17);
 
     //row 6
     const r6c1 = new THREE.Mesh(triple, m);
@@ -336,6 +366,12 @@ function create_grid_cells() {
     main_board_cells.push(r6c5);
     main_board_cells.push(r6c7);
     main_board_cells.push(r6c8);
+    board_cell_position_numbers.push(1);
+    board_cell_position_numbers.push(27);
+    board_cell_position_numbers.push(52);
+    board_cell_position_numbers.push(51);
+    board_cell_position_numbers.push(39);
+    board_cell_position_numbers.push(18);
 
     // row 7
     const r7c2 = new THREE.Mesh(double, m);
@@ -365,6 +401,9 @@ function create_grid_cells() {
     main_board_cells.push(r7c5);
     main_board_cells.push(r7c6);
     main_board_cells.push(r7c8);
+    board_cell_position_numbers.push(26);
+    for (let i = 43; i > 39; i--) board_cell_position_numbers.push(i);
+    board_cell_position_numbers.push(19);
 
     //row 8
     const r8c3 = new THREE.Mesh(single, m);
@@ -393,6 +432,7 @@ function create_grid_cells() {
     main_board_cells.push(r8c6);
     main_board_cells.push(r8c7);
     main_board_cells.push(r8c8);
+    for (let i = 25; i > 19; i--) board_cell_position_numbers.push(i);
 
     // special patches
     const sp_pat_texture = texLoader.load("img3d/leather4.png", (tex) => {
@@ -830,6 +870,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
         const chosen = patch_hits[0].object;
         console.log(chosen);
         highlight_patch(chosen.parent);
+        let camTarget = new THREE.Vector3(-2.2, 0, 1);
+        let camTargetLookAt = new THREE.Vector3(-2.2, 0, 0);
+        moveCam(camTarget, camTargetLookAt);
+        console.log(camera.position);
     }
 
     /* drag time token */
@@ -846,7 +890,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 });
 
 renderer.domElement.addEventListener("pointerup", () => {
-    if (dragging != null) dragging.scale.multiplyScalar(1 / 1.5);
+    if (dragging != null) {
+        get_cell_under_token(dragging);
+        if (dragging != null) dragging.scale.multiplyScalar(1 / 1.5);
+    }
     dragging = null;
     toggle_orbit_controls("on");
 });
@@ -991,6 +1038,43 @@ function outline_object(obj) {
     return outline;
 }
 
+function get_cell_under_token(tk) {
+    console.log("get_cell_under_token called");
+    const token_pos = tk.position;
+    let found = false;
+    for (let i = 0; i < main_board_cells.length; i++) {
+        const box = new THREE.Box3().setFromObject(main_board_cells[i]);
+        if (
+            token_pos.x >= box.min.x &&
+            token_pos.x <= box.max.x &&
+            token_pos.y >= box.min.y &&
+            token_pos.y <= box.max.y
+        ) {
+            console.log(board_cell_position_numbers[i]);
+            window.bonsaiCheckTokenPosition(board_cell_position_numbers[i]);
+            found = true;
+            break;
+        }
+    }
+    if (!found) window.bonsaiCheckTokenPosition(-1);
+}
+
+function moveCam(pos, lookAt) {
+    camStart.copy(camera.position);
+    camLookAt.copy(currentLookAt);
+    camTarget.copy(pos);
+    camTargetLookAt.copy(lookAt);
+    tShift = 0;
+    animating = true;
+}
+
+function get_mb_cell_from_pos(pos) {
+    let index = 0;
+    for (let i = 0; i < board_cell_position_numbers.length; i++)
+        if (board_cell_position_numbers[i] === pos) index = i;
+    return main_board_cells[index];
+}
+
 /* get highlight */
 function highlight_patch(p) {
     if (current_highlight) scene.remove(current_highlight);
@@ -1016,11 +1100,32 @@ function highlight_patch(p) {
     scene.add(highlight);
 }
 
+function position_token(pnum, pos) {
+    const grid_cell = get_mb_cell_from_pos(pos);
+    let token = p1_tt;
+    if (pnum === 2) token = p2_tt;
+    token.position.copy(grid_cell.position);
+    token.position.z = 0.025;
+}
+
 let current_scene = scene;
-let t = 0;
+let tPulse = 0;
+let tShift = 0;
 function animate() {
-    t += 0.05;
-    const pulse = 1 + Math.sin(t) * 0.05;
+    if (animating) {
+        const speed = 0.03;
+        tShift += speed;
+        if (tShift >= 1) {
+            tShift = 1;
+            animating = false;
+        }
+        camera.position.lerpVectors(camStart, camTarget, tShift);
+        currentLookAt.lerpVectors(camLookAt, camTargetLookAt, tShift);
+        camera.lookAt(currentLookAt);
+    }
+
+    tPulse += 0.05;
+    const pulse = 1 + Math.sin(tPulse) * 0.05;
     b1.scale.set(pulse, pulse, pulse);
     b2.scale.set(pulse, pulse, pulse);
     if (skydome) skydome.rotation.y += 0.001;
@@ -1042,8 +1147,9 @@ window.dimIneligiblePatches = function (pos) {
             patches.children[i].traverse((obj) => {
                 if (obj.isMesh) {
                     obj.material.transparent = true;
-                    obj.material.opacity = 0.5;
+                    obj.material.opacity = 0.3;
                     obj.material.wireframe = true;
+                    obj.material.color = 0x000000;
                 }
             });
         } else {
@@ -1055,5 +1161,19 @@ window.dimIneligiblePatches = function (pos) {
                 }
             });
         }
+    }
+};
+
+window.repositionTimeTokens = function (p1, p2) {
+    console.log("p1 pos: ", p1, ", p2 pos: ", p2);
+    const p1_grid_cell = get_mb_cell_from_pos(p1);
+    const p2_grid_cell = get_mb_cell_from_pos(p2);
+    p1_tt.position.copy(p1_grid_cell.position);
+    p2_tt.position.copy(p2_grid_cell.position);
+    p1_tt.position.z = 0.025;
+    p2_tt.position.z = 0.025;
+    if (p1 === p2) {
+        p1_tt.position.y += 0.03;
+        p2_tt.position.y -= 0.03;
     }
 };
