@@ -55,12 +55,14 @@ module Patch : sig
   type t = {
     shape : patch_shape;
     cost : int;
-    pos_around_board : int;
+    mutable pos_around_board : int;
     move_num : int;
     income : int;
     mutable rotated : int;
   }
   [@@deriving sexp, compare, equal]
+
+
 
   val rotate : t -> (int * string) list
   val get_one : int -> int list -> int list -> int
@@ -89,6 +91,7 @@ module Game_board : sig
 
   exception Out_of_bounds
   exception Patch_does_not_fit_there
+
 
   val check_if_patch_fits : (int * string) list -> quilt_board -> int -> int -> bool
 end

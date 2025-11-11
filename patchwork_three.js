@@ -10,6 +10,10 @@ import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
+import {
+    CSS3DRenderer,
+    CSS3DObject,
+} from "three/examples/jsm/renderers/CSS3DRenderer.js";
 
 /* setup  */
 const scene = new THREE.Scene();
@@ -27,10 +31,23 @@ const camera2 = new THREE.PerspectiveCamera(
     1000,
 );
 
+let bonsaiLoaded = false;
 const texLoader = new THREE.TextureLoader();
 
 const canvas = document.getElementById("three-js-canvas");
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({
+    canvas: canvas,
+    antialias: true,
+    alpha: true,
+});
+const labelRenderer = new CSS3DRenderer();
+labelRenderer.setSize(window.innerWidth, window.innerHeight);
+labelRenderer.domElement.style.position = "absolute";
+labelRenderer.domElement.style.top = "0";
+labelRenderer.domElement.style.left = "0";
+labelRenderer.domElement.style.pointerEvents = "none";
+labelRenderer.domElement.style.zIndex = "10";
+document.body.appendChild(labelRenderer.domElement);
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -58,14 +75,16 @@ let ui_element_percentages = [];
 let clickables = [];
 let patch_clickables = [];
 let draggable = [];
+let ui_overlay_built = false;
 
 /* responsive canvas */
 window.addEventListener("resize", onWindowResize);
 
+const TARGET_ASPECT = 16 / 9;
 function onWindowResize() {
-    const container = document.querySelector(".container");
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const vw = window.innerWidth;
+    const width = vw;
+    const height = Math.round(width / TARGET_ASPECT);
 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
@@ -73,6 +92,33 @@ function onWindowResize() {
     camera2.updateProjectionMatrix();
 
     renderer.setSize(width, height);
+    labelRenderer.setSize(width, height);
+
+    // Calculate centering offset for letterboxing
+    const vh = window.innerHeight;
+    const topOffset = Math.round((vh - height) / 2);
+    // Apply the same positioning to both renderers
+    renderer.domElement.style.width = width + "px";
+    renderer.domElement.style.height = height + "px";
+    renderer.domElement.style.top = topOffset + "px";
+    renderer.domElement.style.left = "0px";
+
+    labelRenderer.domElement.style.width = width + "px";
+    labelRenderer.domElement.style.height = height + "px";
+    labelRenderer.domElement.style.top = topOffset + "px";
+    labelRenderer.domElement.style.left = "0px";
+
+    console.log("Width:", width, "Height:", height);
+    console.log(
+        "Renderer size:",
+        renderer.domElement.width,
+        renderer.domElement.height,
+    );
+    console.log(
+        "Label renderer size:",
+        labelRenderer.domElement.offsetWidth,
+        labelRenderer.domElement.offsetHeight,
+    );
     vw_to_local();
 }
 
@@ -100,6 +146,84 @@ objLoader.load("img3d/uvsphere_3.obj", (obj) => {
     skydome2 = obj.clone(true);
     scene.add(obj);
     scene2.add(skydome2);
+});
+
+/* hourglass */
+const hourglass_sand_geo = new THREE.ConeGeometry(1, 2.5, 15, 10);
+const hourglass_sand_m = new THREE.PointsMaterial({
+    color: 0xc2b280,
+    size: 0.008,
+});
+const woodColor = texLoader.load("img3d/wood-color.jpg");
+const woodNormal = texLoader.load("img3d/wood-normal.jpg");
+const woodRough = texLoader.load("img3d/wood-roughness.jpg");
+
+woodColor.wrapS = woodColor.wrapT = THREE.RepeatWrapping;
+woodColor.repeat.set(2, 2);
+
+const woodMat = new THREE.MeshStandardMaterial({
+    map: woodColor,
+    normalMap: woodNormal,
+    roughnessMap: woodRough,
+    roughness: 0.4,
+    metalness: 0.0,
+});
+
+const hourglass = new THREE.Group();
+const hourglass_sand = new THREE.Points(hourglass_sand_geo, hourglass_sand_m);
+const hourglass_geo = new THREE.ConeGeometry(1.4, 2.5, 64, 1);
+const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    roughness: 0.05,
+    metalness: 0,
+    transmission: 1,
+    thickness: 0.4,
+    ior: 1.5,
+    transparent: true,
+    envMapIntensity: 1.0,
+});
+const hg_wood_geo = new THREE.BoxGeometry(3, 3, 0.5);
+const hg_wood_top = new THREE.Mesh(hg_wood_geo, woodMat);
+const hg_wood_bot = new THREE.Mesh(hg_wood_geo, woodMat);
+hg_wood_top.rotation.x += Math.PI / 2;
+hg_wood_top.position.y = -1.5;
+hg_wood_bot.rotation.x += Math.PI / 2;
+hg_wood_bot.position.y = 3.502;
+const hourglass_bottom = new THREE.Mesh(hourglass_geo, glassMat);
+const hourglass_top = new THREE.Mesh(hourglass_geo, glassMat);
+hourglass_top.rotation.x += Math.PI;
+hourglass_top.position.y = 2.5;
+hourglass.add(hourglass_sand);
+hourglass.add(hourglass_bottom);
+hourglass.add(hourglass_top);
+hourglass.add(hg_wood_top);
+hourglass.add(hg_wood_bot);
+hourglass.scale.set(0.05, 0.05, 0.05);
+hourglass.position.z = -2;
+hourglass.position.x = -2.5;
+hourglass.position.y = 0.5;
+camera.add(hourglass);
+
+/* neut token model */
+let neutral_token;
+let neut_init_pos;
+objLoader.load("img3d/neut.obj", (obj) => {
+    obj.traverse((child) => {
+        if (child.isMesh) {
+            child.material = new THREE.MeshBasicMaterial({
+                color: 0xfff8dc,
+            });
+        }
+    });
+
+    obj.scale.set(0.03, 0.03, 0.03);
+    obj.rotation.x += Math.PI / 2;
+    obj.position.x = 1.2;
+    obj.position.z = 0.2;
+    obj.position.y = -0.23;
+    neutral_token = obj;
+    window.moveNeutralToken(neut_init_pos);
+    scene.add(neutral_token);
 });
 
 /* quilt board close buttons */
@@ -598,7 +722,7 @@ board2.rotation.x = -1.57059;
 board2.scale.multiplyScalar(1.3);
 scene2.add(board2);
 
-scene.background = new THREE.Color(0xffffff);
+scene.background = new THREE.Color(0xa873ef);
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
 dirLight.position.set(0, 0, 1);
 scene.add(dirLight);
@@ -632,95 +756,8 @@ const tt2_outline = new THREE.LineSegments(
 //p1_tt.add(tt1_outline);
 p2_tt.add(tt2_outline);
 
-/* patches - test only, dims to be passed in from ocaml */
-const Square = [1, "U", 1, "R", 1, "D"];
-const SquareNub = [1, "U", 1, "R", 1, "U", 1, "SD", 1, "D"];
-const SquareHighFive = [1, "U", 2, "R", 1, "U", 1, "SD", 1, "SL", 1, "D"];
-const TCross = [2, "U", 1, "L", 1, "SR", 1, "R", 1, "SL", 2, "U"];
-const SPatch = [1, "R", 4, "U", 1, "R"];
-const LongI = [4, "U"];
-const LHalfH = [1, "U", 1, "SD", 3, "R", 1, "U"];
-const SHalfH = [1, "U", 1, "SD", 2, "R", 1, "U"];
-const HPatch = [2, "U", 1, "SD", 2, "R", 1, "U", 1, "SD", 1, "D"];
-const Corner = [1, "U", 1, "L"];
-const CornerRev = [1, "L", 1, "U"];
-const SLVert = [2, "U", 1, "L", 1, "U"];
-const ShortI = [2, "U"];
-const IPatch = [3, "U"];
-const LRev = [1, "R", 2, "U"];
-const LongL = [1, "L", 3, "U"];
-const LPatch = [1, "L", 2, "U"];
-const ChunkyLRev = [1, "R", 2, "U", 1, "SD", 1, "L"];
-const SmallI = [1, "U"];
-const ShortT = [2, "U", 1, "R", 1, "SL", 1, "L"];
-const StubbyT = [1, "U", 1, "R", 1, "SL", 1, "L"];
-const TPatch = [3, "U", 1, "R", 1, "SL", 1, "L"];
-const Plus = [1, "U", 1, "R", 1, "SL", 1, "L", 1, "SR", 1, "U"];
-const Zig = [1, "U", 1, "R", 1, "U"];
-const ZigZag = [1, "U", 1, "L", 1, "U", 1, "L"];
-const ZigRev = [1, "U", 1, "L", 1, "U"];
-const ChunkyZig = [2, "U", 1, "R", 1, "U", 1, "SD", 1, "D"];
-const Cross = [2, "U", 1, "R", 1, "SL", 1, "L", 1, "SR", 2, "U"];
-const INub = [1, "U", 1, "L", 1, "SR", 2, "U"];
-const WideStubbyT = [1, "R", 1, "U", 1, "R", 1, "SL", 2, "L"];
-const Prong = [1, "U", 1, "R", 1, "U", 1, "SD", 1, "R", 1, "D"];
-const Vine = [1, "U", 1, "R", 1, "SL", 1, "U", 1, "L", 1, "SR", 2, "U"];
-const WidePlus = [
-    1,
-    "U",
-    1,
-    "L",
-    1,
-    "SR",
-    1,
-    "U",
-    1,
-    "R",
-    1,
-    "D",
-    1,
-    "R",
-    1,
-    "SL",
-    1,
-    "D",
-];
-
-const patch_dimensions = [
-    Square,
-    SquareNub,
-    SquareHighFive,
-    TCross,
-    SPatch,
-    LongI,
-    LHalfH,
-    SHalfH,
-    HPatch,
-    Corner,
-    CornerRev,
-    SLVert,
-    ShortI,
-    LRev,
-    LongL,
-    LPatch,
-    ChunkyLRev,
-    SmallI,
-    IPatch,
-    ShortT,
-    StubbyT,
-    TPatch,
-    Plus,
-    Zig,
-    ZigZag,
-    ZigRev,
-    ChunkyZig,
-    Cross,
-    INub,
-    WideStubbyT,
-    Prong,
-    Vine,
-    WidePlus,
-];
+/* patches */
+let patches_built = false;
 
 const patch_cols = [
     2, 2, 3, 3, 3, 1, 4, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 3, 3, 3, 3, 2, 3,
@@ -733,13 +770,18 @@ const patch_rows = [
 ];
 
 const patches = new THREE.Group();
-create_patches();
-scene.add(patches);
+let patch_clone = null;
 let patches2 = patches.clone(true);
 scene2.add(patches2);
-let patch_clone = null;
 
-function create_patches() {
+function create_patches(
+    patch_dimensions,
+    patch_cols,
+    patch_costs,
+    patch_times,
+    patch_incomes,
+) {
+    console.log("create patches called");
     const patch_cell_geo = new THREE.BoxGeometry(0.06, 0.06, 0.012);
 
     for (let i = 0; i < patch_dimensions.length; i++) {
@@ -747,6 +789,14 @@ function create_patches() {
         const patch_material = new THREE.MeshBasicMaterial({
             color: randomColor,
         });
+        for (let j = 0; j < patch_dimensions[i].length - 1; j += 2) {
+            const num_cubes = patch_dimensions[i][j];
+            const direction = patch_dimensions[i][j + 1];
+
+            for (let k = 0; k < num_cubes; k++) {
+                // ...
+            }
+        }
         let up_offset = 0;
         let down_offset = 0;
         let left_offset = 0;
@@ -809,10 +859,18 @@ function create_patches() {
                 patch.position.set(0, 0, 0);
                 patch.rotation.z = Math.PI;
                 patch.rotation.y = Math.PI;
-                patch.userData = { pos: i, orig_rot: patch.rotation.clone() };
+                patch.userData = {
+                    pos: i,
+                    cost: patch_costs[i],
+                    time: patch_times[i],
+                    income: patch_incomes[i],
+                    orig_rot: patch.rotation.clone(),
+                };
+
                 patches.add(patch);
             }
         }
+        scene.add(patches);
     }
     position_patches();
     function position_patches() {
@@ -865,8 +923,11 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const hits = raycaster.intersectObjects(clickables, true);
     const patch_hits = raycaster.intersectObjects(patch_clickables, true);
     const drag_hits = raycaster.intersectObjects(draggable, true);
-
     const close_button_hits = raycaster.intersectObject(close_button, true);
+    const quilt_cell_hits = raycaster.intersectObjects(
+        p1_quilt_board.children,
+        true,
+    );
 
     if (object_outlined) {
         scene.remove(object_outlined);
@@ -875,17 +936,9 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
         object_outlined = null;
     }
 
-    /* outlines
-    if (hits.length > 0) {
-        const chosen = hits[0].object;
-        console.log(chosen);
-        object_outlined = outline_object(chosen);
-        object_outlined.position.x += chosen.parent.position.x;
-        scene.add(object_outlined);
-    } */
-
     /* patch select overlay */
     if (patch_hits.length > 0) {
+        console.log("place patch");
         const chosen = patch_hits[0].object;
         placing = true;
         console.log(chosen);
@@ -897,12 +950,26 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
         patch_clone.rotation.set(chosen.parent.userData.orig_rot);
         patch_clone.position.set(-2.2, 0, 0.02);
         patch_clone.rotation.set(0, 0, 0);
+        console.log("before rot: ", patch_clone.rotation.z);
+        patch_clone.rotation.z = -Math.PI;
+        patch_clone.rotation.y = -Math.PI;
+        console.log("after rot: ", patch_clone.rotation.z);
         patch_clone.scale.set(1.8, 1.8, 0);
         dragZ = 0.02;
         scene.add(patch_clone);
         manipulating = patch_clone;
         scene.add(close_button);
         toggle_orbit_controls("off");
+    }
+
+    /* patch place on quilt board cell */
+    if (quilt_cell_hits.length > 0) {
+        const hit = quilt_cell_hits[0];
+        const row = hit.object.userData.row;
+        const col = hit.object.userData.col;
+        const patch = manipulating.userData.pos;
+        const time = manipulating.userData.time;
+        window.bonsaiPlacePatch(row, col, patch, time);
     }
 
     /* drag time token */
@@ -925,6 +992,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
             new THREE.Vector3(0, 0, 0),
             false,
         );
+        placing = false;
         destroy_mesh(patch_clone);
         scene.remove(close_button);
         toggle_orbit_controls("on");
@@ -987,6 +1055,8 @@ const p2_quilt_board = create_quilt_board(new THREE.Color(0xff0000));
 p2_quilt_board.position.x = 2.2;
 scene.add(p2_quilt_board);
 
+let patches_on_qb = [];
+
 function create_quilt_board(color) {
     const qb = new THREE.Group();
     const q_board_geo = new THREE.PlaneGeometry(1.1, 1.1);
@@ -1004,6 +1074,7 @@ function create_quilt_board(color) {
             const qb_cell_geo = new THREE.BoxGeometry(0.09, 0.09, 0.01);
             const qb_cell_m = new THREE.MeshBasicMaterial({ color: 0xc0c0c0 });
             const qb_cell = new THREE.Mesh(qb_cell_geo, qb_cell_m);
+            qb_cell.userData = { row: i, col: j };
             qb_cell.position.set(-0.5 + col_offset, 0.5 + row_offset, 0.01);
             qb.add(qb_cell);
             clickables.push(qb_cell);
@@ -1153,6 +1224,46 @@ function moveCam(pos, lookAt) {
     animating = true;
 }
 
+function build_ui_overlay() {
+    console.log("called build ui overlay");
+    const div_cont = document.createElement("div");
+    const div_info = document.createElement("div");
+    div_info.className = "patch-info";
+    div_info.id = "patch-info";
+    const div_attrs = document.createElement("div");
+    div_attrs.className = "div-attrs";
+    const div_cost_label = document.createElement("div");
+    const div_cost_value = document.createElement("div");
+    const div_time_label = document.createElement("div");
+    const div_time_value = document.createElement("div");
+
+    div_cost_label.className = "patch-label";
+    div_cost_label.textContent = "Cost: ";
+    div_cost_value.className = "patch-value";
+    div_cost_value.id = "patch-cost";
+    div_time_label.className = "patch-label";
+    div_time_label.textContent = "Time: ";
+    div_time_value.className = "patch-value";
+    div_time_value.id = "patch-time";
+
+    div_attrs.appendChild(div_cost_label);
+    div_attrs.appendChild(div_cost_value);
+    div_attrs.appendChild(div_time_label);
+    div_attrs.appendChild(div_time_value);
+
+    div_info.appendChild(div_attrs);
+
+    div_cont.appendChild(div_info);
+
+    const patch_info = new CSS3DObject(div_cont);
+
+    patch_info.position.set(-3, 0.25, 0.02);
+    patch_info.scale.set(0.0025, 0.0025, 0.0025);
+
+    scene.add(patch_info);
+    ui_overlay_built = true;
+}
+
 function get_mb_cell_from_pos(pos) {
     let index = 0;
     for (let i = 0; i < board_cell_position_numbers.length; i++)
@@ -1196,6 +1307,7 @@ function position_token(pnum, pos) {
 let current_scene = scene;
 let tPulse = 0;
 let tShift = 0;
+
 function animate() {
     if (animating) {
         const speed = 0.03;
@@ -1219,24 +1331,43 @@ function animate() {
     patches2.rotation.z += 0.02;
     patches2.rotation.x += 0.02;
     board2.rotation.z += 0.005;
+    hourglass_sand.rotation.y += 0.01;
     renderer.render(current_scene, camera);
+    labelRenderer.render(current_scene, camera);
 }
 renderer.setAnimationLoop(animate);
 
 /* Bonsai entry points */
 
 window.dimIneligiblePatches = function (pos) {
-    console.log(pos);
+    console.log("dim ineligible after pos: ", pos);
+    console.log("patches: ", patches.children.length);
+    function dim(p) {
+        patches.children[p].traverse((obj) => {
+            if (obj.isMesh) {
+                obj.material.transparent = true;
+                obj.material.opacity = 0.3;
+                obj.material.wireframe = true;
+                obj.material.color = 0x000000;
+            }
+        });
+    }
+
     for (let i = 0; i < patches.children.length; i++) {
-        if (i + 1 != pos && i + 1 != pos + 1 && i + 1 != pos + 2) {
-            patches.children[i].traverse((obj) => {
-                if (obj.isMesh) {
-                    obj.material.transparent = true;
-                    obj.material.opacity = 0.3;
-                    obj.material.wireframe = true;
-                    obj.material.color = 0x000000;
+        if (pos === 33) {
+            if (i != 0 && i != 1 && i != 2) {
+                dim(i);
+            } else if (pos == 32) {
+                if (i != 32 && i != 0 && i != 1) {
+                    dim(i);
                 }
-            });
+            } else if (pos == 31) {
+                if (i != 31 && i != 32 && i != 0) {
+                    dim(i);
+                }
+            }
+        } else if (i + 1 != pos && i + 1 != pos + 1 && i + 1 != pos + 2) {
+            dim(i);
         } else {
             patches.children[i].traverse((obj) => {
                 if (obj.isMesh) {
@@ -1261,4 +1392,35 @@ window.repositionTimeTokens = function (p1, p2) {
         p1_tt.position.y += 0.03;
         p2_tt.position.y -= 0.03;
     }
+};
+
+window.placePatchesOnQuiltBoard = function (patches, rows, cols) {};
+
+window.moveNeutralToken = function (pos) {
+    if (!neutral_token) return;
+    if (pos === 33) {
+        neutral_token.position.copy(patches.children[32].position);
+        return;
+    }
+    console.log("move neutral token called");
+    let neut_pos = new THREE.Vector3();
+    console.log("length of patches: ", patches.children.length);
+    for (let i = 0; i < patches.children.length; i++) {
+        console.log("pos: ", patches.children[i].userData.pos);
+        if (patches.children[i].userData.pos === pos) {
+            neutral_token.position.copy(patches.children[i - 2].position);
+        }
+    }
+};
+
+window.buildInitialPatches = function (pl, pr, pc, pt, pi, n) {
+    console.log("build patches called");
+    create_patches(pl, pr, pc, pt, pi);
+    neut_init_pos = n;
+};
+
+window.window.onBonsaiReady = function () {
+    //if (ui_overlay_built) return;
+    //build_ui_overlay();
+    build;
 };

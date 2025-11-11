@@ -55,7 +55,7 @@ module Patch = struct
   type t = {
     shape : patch_shape;
     cost : int;
-    pos_around_board : int;
+    mutable pos_around_board : int;
     move_num : int;
     income : int;
     mutable rotated : int;
@@ -64,43 +64,59 @@ module Patch = struct
 
   let get_patch_dim p =
     match p with
-    | Square -> [ (1, "R"); (1, "D"); (1, "L") ]
-    | SquareNub -> [ (1, "D"); (1, "R"); (2, "U") ]
-    | SquareHighFive -> [ (1, "D"); (1, "R"); (1, "U"); (1, "R"); (1, "U") ]
-    | TCross -> [ (1, "R"); (2, "U"); (2, "SD"); (1, "R"); (1, "SL"); (2, "D") ]
-    | S -> [ (1, "R"); (4, "U"); (1, "R") ]
-    | LongI -> [ (4, "D") ]
-    | LHalfH -> [ (1, "D"); (3, "R"); (1, "U") ]
-    | SHalfH -> [ (1, "D"); (2, "R"); (1, "U") ]
-    | H -> [ (2, "D"); (1, "SU"); (2, "R"); (1, "U"); (1, "SD"); (1, "D") ]
-    | Corner -> [ (1, "R"); (1, "D") ]
-    | CornerRev -> [ (1, "D"); (1, "R") ]
-    | SLVert -> [ (1, "D"); (1, "R"); (2, "D") ]
-    | ShortI -> [ (2, "D") ]
-    | I -> [ (3, "D") ]
-    | LRev -> [ (1, "R"); (2, "U") ]
-    | LongL -> [ (3, "D"); (1, "R") ]
-    | L -> [ (2, "D"); (1, "R") ]
-    | ChunkyLRev -> [ (1, "D"); (1, "R"); (2, "U") ]
-    | SmallI -> [ (1, "D") ]
-    | ShortT -> [ (1, "R"); (1, "D"); (1, "SU"); (1, "R") ]
-    | StubbyT -> [ (3, "R"); (1, "SL"); (2, "D") ]
-    | T -> [ (2, "R"); (1, "SL"); (3, "D") ]
-    | Plus -> [ (1, "R"); (1, "U"); (1, "SD"); (1, "R"); (1, "SL"); (1, "D") ]
-    | Zig -> [ (1, "U"); (1, "SD"); (1, "R"); (1, "D") ]
-    | ZigZag -> [ (1, "R"); (1, "D"); (1, "R"); (1, "D") ]
-    | ZigRev -> [ (1, "D"); (1, "SU"); (1, "R"); (1, "U") ]
-    | ChunkyZig -> [ (1, "R"); (1, "U"); (1, "SD"); (1, "D"); (1, "L"); (1, "D") ]
-    | Cross -> [ (1, "R"); (2, "U"); (2, "SD"); (1, "R"); (1, "SL"); (2, "D") ]
-    | INub -> [ (1, "R"); (1, "D"); (1, "SU"); (2, "U") ]
-    | WideStubbyT -> [ (1, "R"); (1, "D"); (1, "SU"); (1, "R") ]
-    | Prong -> [ (1, "D"); (1, "SU"); (1, "R"); (2, "U"); (2, "SD"); (1, "R"); (1, "D") ]
-    | Vine -> [ (2, "D"); (1, "L"); (1, "SR"); (1, "D"); (1, "R"); (1, "SL"); (1, "D") ]
-    | WidePlus ->
-        [
-          (2, "R"); (1, "D"); (1, "R"); (1, "SL"); (1, "D"); (1, "L"); (1, "U"); (1, "L");
-        ]
-    | Empty -> []
+    | Square -> [1, "U"; 1, "R"; 1, "D"]
+    | SquareNub -> [1, "U"; 1, "R"; 1, "U"; 1, "SD"; 1, "D"]
+    | SquareHighFive -> [1, "U"; 2, "R"; 1, "U"; 1, "SD"; 1, "SL"; 1, "D"]
+    | TCross -> [2, "U"; 1, "L"; 1, "SR"; 1, "R"; 1, "SL"; 2, "U"]
+    | S -> [1, "R"; 4, "U"; 1, "R"]
+    | LongI -> [4, "U"]
+    | LHalfH -> [1, "U"; 1, "SD"; 3, "R"; 1, "U"]
+    | SHalfH -> [1, "U"; 1, "SD"; 2, "R"; 1, "U"]
+    | H -> [2, "U"; 1, "SD"; 2, "R"; 1, "U"; 1, "SD"; 1, "D"]
+    | Corner -> [1, "U"; 1, "L"]
+    | CornerRev -> [1, "L"; 1, "U"]
+    | SLVert -> [2, "U"; 1, "L"; 1, "U"]
+    | ShortI -> [2, "U"]
+    | I -> [3, "U"]
+    | LRev -> [1, "R"; 2, "U"]
+    | LongL -> [1, "L"; 3, "U"]
+    | L -> [1, "L"; 2, "U"]
+    | ChunkyLRev -> [1, "R"; 2, "U"; 1, "SD"; 1, "L"]
+    | SmallI -> [1, "U"]
+    | ShortT -> [2, "U"; 1, "R"; 1, "SL"; 1, "L"]
+    | StubbyT -> [1, "U"; 1, "R"; 1, "SL"; 1, "L"]
+    | T -> [3, "U"; 1, "R"; 1, "SL"; 1, "L"]
+    | Plus -> [1, "U"; 1, "R"; 1, "SL"; 1, "L"; 1, "SR"; 1, "U"]
+    | Zig -> [1, "U"; 1, "R"; 1, "U"]
+    | ZigZag -> [1, "U"; 1, "L"; 1, "U"; 1, "L"]
+    | ZigRev -> [1, "U"; 1, "L"; 1, "U"]
+    | ChunkyZig -> [2, "U"; 1, "R"; 1, "U"; 1, "SD"; 1, "D"]
+    | Cross -> [2, "U"; 1, "R"; 1, "SL"; 1, "L"; 1, "SR"; 2, "U"]
+    | INub -> [1, "U"; 1, "L"; 1, "SR"; 2, "U"]
+    | WideStubbyT -> [1, "R"; 1, "U"; 1, "R"; 1, "SL"; 2, "L"]
+    | Prong -> [1, "U"; 1, "R"; 1, "U"; 1, "SD"; 1, "R"; 1, "D"]
+    | Vine -> [1, "U"; 1, "R"; 1, "SL"; 1, "U"; 1, "L"; 1, "SR"; 2, "U"]
+    | WidePlus -> [
+        1,
+        "U";
+        1,
+        "L";
+        1,
+        "SR";
+        1,
+        "U";
+        1,
+        "R";
+        1,
+        "D";
+        1,
+        "R";
+        1,
+        "SL";
+        1,
+        "D";
+    ]
+  | Empty -> []
 
   let rotate (p : t) =
     if p.rotated = 0 then
@@ -344,6 +360,21 @@ module Patch = struct
 
   exception No_patches_left
 
+  let shuffle_patches (pl : t list) : t list =
+    let arr = Array.of_list pl in
+    let num_patches = Array.length arr in
+    for i = (num_patches - 1) downto 1 do
+      let j = Random.int (i + 1) in
+      let temp = arr.(i) in
+      let temp_pos = arr.(i).pos_around_board in
+      arr.(i).pos_around_board <- arr.(j).pos_around_board;
+      arr.(i) <- arr.(j);
+      arr.(j).pos_around_board <- temp_pos;
+      arr.(j) <- temp;
+    done;
+    Array.to_list arr
+
+
   let rec get_one i rem_list orig_rl =
     let start_over rl =
       match rl with
@@ -356,7 +387,7 @@ module Patch = struct
 
   let rec build_patch_set shapes (patches : t list) acc =
     match shapes with
-    | [] -> patches
+    | [] -> List.rev patches
     | hd :: t ->
         let patch_attr = get_values hd in
         let patch_inc = get_income hd in
@@ -373,22 +404,19 @@ module Patch = struct
         let pl_updated = patch :: patches in
         build_patch_set t pl_updated (acc + 1)
 
-  let init_patches () = build_patch_set shapes [] 1
+  let init_patches () =
+    Random.self_init ();
+    let patch_list = build_patch_set shapes [] 1 in
+    shuffle_patches patch_list
 
-  let find_initial_neut_pos pl =
+
+  let find_initial_neut_pos (pl : t list) : int =
     let rec iter_patch_list = function
       | [] -> 1
-      | {
-          shape = Corner;
-          pos_around_board;
-          cost = _;
-          move_num = _;
-          income = _;
-          rotated = _;
-        }
-        :: _ ->
-          pos_around_board
-      | _ :: tl -> iter_patch_list tl
+      | (p : t) :: tl ->
+        (match p.shape with
+         | Corner -> p.pos_around_board
+         | _ -> iter_patch_list tl)
     in
     iter_patch_list pl
 end
