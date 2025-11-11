@@ -59,8 +59,11 @@ let camTarget = new THREE.Vector3(0, 0, 0);
 let camTargetLookAt = new THREE.Vector3(0, 0, 0);
 let currentLookAt = new THREE.Vector3(0, 0, 0);
 let animating = false;
-camera.position.z = 2.3;
-camera2.position.z = 5.3;
+let tPulse = 0;
+let tShift = 0;
+camera.position.set(3.5, 0, 7.5);
+moveCam(new THREE.Vector3(0, 0, 2.5), new THREE.Vector3(0, 0, 0));
+camera2.position.z = 10.3;
 camera2.position.y = 4;
 const cam_offset = -2.3;
 scene.add(camera);
@@ -76,6 +79,34 @@ let clickables = [];
 let patch_clickables = [];
 let draggable = [];
 let ui_overlay_built = false;
+
+/* logo */
+const fontLoader = new FontLoader();
+fontLoader.load("img3d/Princess Sofia_Regular.json", (font) => {
+    const logo_g = new TextGeometry("Patchwork", {
+        font: font,
+        size: 0.25,
+        height: 0.05,
+        curveSegments: 12,
+        bevelEnabled: true,
+        bevelThickness: 0.01,
+        bevelSize: 0.005,
+        bevelSegments: 3,
+    });
+
+    logo_g.computeBoundingBox();
+    logo_g.center();
+
+    const logo_m = new THREE.MeshPhongMaterial({
+        color: 0xffcc66,
+        specular: 0x444444,
+        shininess: 30,
+    });
+
+    const logo = new THREE.Mesh(logo_g, logo_m);
+    logo.position.set(0, 0.8, 0);
+    scene.add(logo);
+});
 
 /* responsive canvas */
 window.addEventListener("resize", onWindowResize);
@@ -724,7 +755,7 @@ scene2.add(board2);
 
 scene.background = new THREE.Color(0xa873ef);
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-dirLight.position.set(0, 0, 1);
+dirLight.position.set(0, 1, 1);
 scene.add(dirLight);
 scene2.add(dirLight.clone(true));
 
@@ -759,17 +790,8 @@ p2_tt.add(tt2_outline);
 /* patches */
 let patches_built = false;
 
-const patch_cols = [
-    2, 2, 3, 3, 3, 1, 4, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 3, 3, 3, 3, 2, 3,
-    2, 2, 3, 2, 4, 3, 3, 4,
-];
-
-const patch_rows = [
-    2, 3, 3, 5, 5, 5, 2, 2, 3, 2, 2, 4, 3, 3, 4, 3, 3, 2, 4, 3, 2, 4, 3, 3, 3,
-    3, 4, 5, 4, 2, 3, 5, 3,
-];
-
 const patches = new THREE.Group();
+
 let patch_clone = null;
 let patches2 = patches.clone(true);
 scene2.add(patches2);
@@ -870,7 +892,7 @@ function create_patches(
                 patches.add(patch);
             }
         }
-        scene.add(patches);
+        current_scene.add(patches);
     }
     position_patches();
     function position_patches() {
@@ -1312,12 +1334,10 @@ function position_token(pnum, pos) {
 }
 
 let current_scene = scene;
-let tPulse = 0;
-let tShift = 0;
 
 function animate() {
     if (animating) {
-        const speed = 0.03;
+        const speed = 0.009;
         tShift += speed;
         if (tShift >= 1) {
             tShift = 1;
@@ -1330,6 +1350,7 @@ function animate() {
 
     tPulse += 0.05;
     const pulse = 1 + Math.sin(tPulse) * 0.05;
+
     b1.scale.set(pulse, pulse, pulse);
     b2.scale.set(pulse, pulse, pulse);
     if (skydome) skydome.rotation.y += 0.001;
