@@ -892,6 +892,42 @@ function create_patches(
     }
 }
 
+/* quilt boards */
+const p1_quilt_board = create_quilt_board(new THREE.Color(0x0000ff));
+p1_quilt_board.position.x = -2.2;
+scene.add(p1_quilt_board);
+const p2_quilt_board = create_quilt_board(new THREE.Color(0xff0000));
+p2_quilt_board.position.x = 2.2;
+scene.add(p2_quilt_board);
+
+function create_quilt_board(color) {
+    const qb = new THREE.Group();
+    const q_board_geo = new THREE.PlaneGeometry(1.1, 1.1);
+    const q_board_m = new THREE.MeshBasicMaterial({
+        color: color,
+        side: THREE.DoubleSide,
+    });
+    const q_board = new THREE.Mesh(q_board_geo, q_board_m);
+    qb.add(q_board);
+
+    let row_offset = -0.055;
+    for (let i = 0; i < 9; i++) {
+        let col_offset = 0.055;
+        for (let j = 0; j < 9; j++) {
+            const qb_cell_geo = new THREE.BoxGeometry(0.09, 0.09, 0.01);
+            const qb_cell_m = new THREE.MeshBasicMaterial({ color: 0xc0c0c0 });
+            const qb_cell = new THREE.Mesh(qb_cell_geo, qb_cell_m);
+            qb_cell.userData = { row: i, col: j };
+            qb_cell.position.set(-0.5 + col_offset, 0.5 + row_offset, 0.01);
+            qb.add(qb_cell);
+            clickables.push(qb_cell);
+            col_offset += 0.11;
+        }
+        row_offset -= 0.11;
+    }
+    return qb;
+}
+
 /* drag tokens */
 let manipulating = null;
 let dragging = false;
@@ -942,7 +978,6 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
         const chosen = patch_hits[0].object;
         placing = true;
         console.log(chosen);
-        highlight_patch(chosen.parent);
         let camTarget = new THREE.Vector3(-2.2, 0, 1);
         let camTargetLookAt = new THREE.Vector3(-2.2, 0, 0);
         moveCam(camTarget, camTargetLookAt);
@@ -965,11 +1000,22 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     /* patch place on quilt board cell */
     if (quilt_cell_hits.length > 0) {
         const hit = quilt_cell_hits[0];
-        const row = hit.object.userData.row;
-        const col = hit.object.userData.col;
+        const cell = hit.object;
+        const row = cell.userData.row;
+        const col = cell.userData.col;
         const patch = manipulating.userData.pos;
         const time = manipulating.userData.time;
-        window.bonsaiPlacePatch(row, col, patch, time);
+        const place_res = window.bonsaiPlacePatch(row, col, patch, time);
+        console.log(place_res);
+        if (place_res) {
+            p1_quilt_board.add(manipulating);
+            manipulating.position.copy(cell.position);
+            manipulating.position.z = dragZ;
+            placing = false;
+            console.log(manipulating.position);
+            manipulating = null;
+            close_window(false);
+        }
     }
 
     /* drag time token */
@@ -987,15 +1033,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
     if (close_button_hits.length > 0) {
         console.log("close button clicked");
-        moveCam(
-            new THREE.Vector3(0, 0, 2.3),
-            new THREE.Vector3(0, 0, 0),
-            false,
-        );
-        placing = false;
-        destroy_mesh(patch_clone);
-        scene.remove(close_button);
-        toggle_orbit_controls("on");
+        close_window(true);
     }
 });
 
@@ -1047,42 +1085,13 @@ renderer.domElement.addEventListener("pointermove", (event) => {
     }
 });
 
-/* quilt boards */
-const p1_quilt_board = create_quilt_board(new THREE.Color(0x0000ff));
-p1_quilt_board.position.x = -2.2;
-scene.add(p1_quilt_board);
-const p2_quilt_board = create_quilt_board(new THREE.Color(0xff0000));
-p2_quilt_board.position.x = 2.2;
-scene.add(p2_quilt_board);
-
-let patches_on_qb = [];
-
-function create_quilt_board(color) {
-    const qb = new THREE.Group();
-    const q_board_geo = new THREE.PlaneGeometry(1.1, 1.1);
-    const q_board_m = new THREE.MeshBasicMaterial({
-        color: color,
-        side: THREE.DoubleSide,
-    });
-    const q_board = new THREE.Mesh(q_board_geo, q_board_m);
-    qb.add(q_board);
-
-    let row_offset = -0.055;
-    for (let i = 0; i < 9; i++) {
-        let col_offset = 0.055;
-        for (let j = 0; j < 9; j++) {
-            const qb_cell_geo = new THREE.BoxGeometry(0.09, 0.09, 0.01);
-            const qb_cell_m = new THREE.MeshBasicMaterial({ color: 0xc0c0c0 });
-            const qb_cell = new THREE.Mesh(qb_cell_geo, qb_cell_m);
-            qb_cell.userData = { row: i, col: j };
-            qb_cell.position.set(-0.5 + col_offset, 0.5 + row_offset, 0.01);
-            qb.add(qb_cell);
-            clickables.push(qb_cell);
-            col_offset += 0.11;
-        }
-        row_offset -= 0.11;
-    }
-    return qb;
+/* close quilt board/patch place view */
+function close_window(destroy) {
+    moveCam(new THREE.Vector3(0, 0, 2.3), new THREE.Vector3(0, 0, 0), false);
+    placing = false;
+    if (destroy) destroy_mesh(patch_clone);
+    scene.remove(close_button);
+    toggle_orbit_controls("on");
 }
 
 /* toggle off when dragging game piece */
@@ -1195,7 +1204,6 @@ function destroy_mesh(mesh) {
 }
 
 function get_cell_under_token(tk) {
-    console.log("get_cell_under_token called");
     const token_pos = tk.position;
     let found = false;
     for (let i = 0; i < main_board_cells.length; i++) {
@@ -1225,7 +1233,6 @@ function moveCam(pos, lookAt) {
 }
 
 function build_ui_overlay() {
-    console.log("called build ui overlay");
     const div_cont = document.createElement("div");
     const div_info = document.createElement("div");
     div_info.className = "patch-info";
@@ -1340,8 +1347,6 @@ renderer.setAnimationLoop(animate);
 /* Bonsai entry points */
 
 window.dimIneligiblePatches = function (pos) {
-    console.log("dim ineligible after pos: ", pos);
-    console.log("patches: ", patches.children.length);
     function dim(p) {
         patches.children[p].traverse((obj) => {
             if (obj.isMesh) {
@@ -1381,7 +1386,6 @@ window.dimIneligiblePatches = function (pos) {
 };
 
 window.repositionTimeTokens = function (p1, p2) {
-    console.log("p1 pos: ", p1, ", p2 pos: ", p2);
     const p1_grid_cell = get_mb_cell_from_pos(p1);
     const p2_grid_cell = get_mb_cell_from_pos(p2);
     p1_tt.position.copy(p1_grid_cell.position);
@@ -1402,11 +1406,8 @@ window.moveNeutralToken = function (pos) {
         neutral_token.position.copy(patches.children[32].position);
         return;
     }
-    console.log("move neutral token called");
     let neut_pos = new THREE.Vector3();
-    console.log("length of patches: ", patches.children.length);
     for (let i = 0; i < patches.children.length; i++) {
-        console.log("pos: ", patches.children[i].userData.pos);
         if (patches.children[i].userData.pos === pos) {
             neutral_token.position.copy(patches.children[i - 2].position);
         }
@@ -1414,7 +1415,6 @@ window.moveNeutralToken = function (pos) {
 };
 
 window.buildInitialPatches = function (pl, pr, pc, pt, pi, n) {
-    console.log("build patches called");
     create_patches(pl, pr, pc, pt, pi);
     neut_init_pos = n;
 };

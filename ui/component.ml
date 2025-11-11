@@ -144,9 +144,10 @@ let place_patch_component ~game_state ~set_game_state ~status ~set_status_msg ~s
       "bonsaiPlacePatch"
       (Js_of_ocaml.Js.wrap_callback
         (fun (r : float) (c : float) (pc : float) (time : float) ->
-          let row = int_of_float r in
-          let col = int_of_float c in
+          let row = int_of_float r - 1 in
+          let col = int_of_float c - 1 in
           let patch_choice = int_of_float pc in
+          log ("clicked on: row " ^ string_of_int row ^ ", col " ^ string_of_int col);
           let advance_spaces = int_of_float time in
           let gs : Hw2_patchwork_logic.Game_state.t = game_state in
           let player = gs.turn in
@@ -167,26 +168,26 @@ let place_patch_component ~game_state ~set_game_state ~status ~set_status_msg ~s
               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect3;
 
               move_time_token player.player_num upd_state.tk1.position;
-              Bonsai.Value.return true
+              Js_of_ocaml.Js._true
             with
               | Button.Insufficient_funds ->
                 let effect1 = set_status_msg "Not Enough Buttons" in
                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
                 let effect2 = set_status_bg "#FF2C2C" in
                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                Bonsai.Value.return false
+                Js_of_ocaml.Js._false
               | Game_board.Out_of_bounds ->
                 let effect1 = set_status_msg "Out of Bounds" in
                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
                 let effect2 = set_status_bg "#FF2C2C" in
                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                Bonsai.Value.return false
+                Js_of_ocaml.Js._false
               | Game_board.Patch_does_not_fit_there ->
                 let effect1 = set_status_msg "Patch Does Not Fit There" in
                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
                 let effect2 = set_status_bg "#FF2C2C" in
                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                Bonsai.Value.return false))
+                Js_of_ocaml.Js._false))
     in
     status
 
@@ -269,14 +270,6 @@ let game_component =
   and advance = advance
   and place_patch = place_patch
   in
-
-  let rec print_patches (pl : Patch.t list) =
-    match pl with
-    [] -> log ""
-  | hd :: tl -> log (Patch.sexp_of_patch_shape hd.shape |> Sexplib.Sexp.to_string_hum);
-    print_patches tl
-  in
-  print_patches game_state.patches;
 
   reposition_time_tokens game_state.tk1.position game_state.tk2.position;
   set_button_count 1 game_state.tk1.owned_by.buttons_owned;
