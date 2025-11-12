@@ -1,4 +1,7 @@
 open! Core
+open Js_of_ocaml
+
+let log s = Firebug.console##log (Js.string s)
 
 (* Players *)
 
@@ -346,6 +349,30 @@ module Patch = struct
 
   exception No_patches_left
 
+  let rotate_dir dir =
+    match dir with
+    | "D" -> "L"
+    | "L" -> "U"
+    | "U" -> "R"
+    | "R" -> "D"
+    | "SD" -> "SL"
+    | "SL" -> "SU"
+    | "SU" -> "SR"
+    | "SR" -> "SD"
+    | _ -> dir
+  ;;
+
+  let get_rotated_dim (dim : (int * string) list) =
+    let rec loop dims acc =
+      match dims with
+      | [] -> List.rev acc
+      | (num, dir) :: tl ->
+        let new_dir = rotate_dir dir in
+        loop tl ((num, new_dir) :: acc)
+    in
+    loop dim []
+  ;;
+
   let shuffle_patches (pl : t list) : t list =
     let arr = Array.of_list pl in
     let num_patches = Array.length arr in
@@ -433,11 +460,21 @@ module Game_board = struct
   exception Out_of_bounds
   exception Patch_does_not_fit_there
 
-  (* let print_filled_slots (board : quilt_board) = let filled = board.filled_squares in
-     let rec iter f = match f with | [] -> log "Done" | hd :: tl -> log (string_of_int
-     (fst hd) ^ ", " ^ string_of_int (snd hd)); iter tl in iter filled ;;
+  let print_filled_slots (board : quilt_board) =
+    let filled = board.filled_squares in
+    let rec iter f =
+      match f with
+      | [] ->
+        log "Done";
+        ()
+      | hd :: tl ->
+        log (string_of_int (fst hd) ^ ", " ^ string_of_int (snd hd));
+        iter tl
+    in
+    iter filled
+  ;;
 
-     let rec check_patch_squares (f : (int * int) list) qb sr sc dir acc = if acc < 1 then
+  (* let rec check_patch_squares (f : (int * int) list) qb sr sc dir acc = if acc < 1 then
      (sr, sc) else let rec check_all_filled (filled_squares : (int * int) list) : bool =
      match filled_squares with | [] -> true | (r, c) :: tl -> if r = sr && c = sc then
      raise Patch_does_not_fit_there else check_all_filled tl in
@@ -524,8 +561,16 @@ module Game_board = struct
      board.filled_squares board row col d q in if upd_row = -1 && upd_col = -1 then false
      else check_if_patch_fits tl board upd_row upd_col *)
 
-  let place_patch_on_quilt_board board patch r c =
-    let dim = Patch.get_patch_dim patch in
+  let place_patch_on_quilt_board board patch r c rot =
+    let orig_dim = Patch.get_patch_dim patch in
+    let rec rotate dim n =
+      if n > 0
+      then (
+        let new_dim = Patch.get_rotated_dim dim in
+        rotate new_dim (n - 1))
+      else dim
+    in
+    let dim = rotate orig_dim rot in
     if check_if_patch_fits dim board r c
     then (
       let rec fill_in_new_patch dim cur_r cur_c acc =
@@ -889,8 +934,9 @@ module Move = struct
     | PlacePatch ->
       let p = take_patch patches patch_choice in
       let pps = pl_remove_at patch_choice patches in
+      let rot = p.rotated in
       let upd_rem_list = reml_remove_at patch_choice remaining_patches in
-      let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c in
+      let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c rot in
       Button.take_buttons state.bc player_moving p.cost;
       let new_token =
         Token.move_token_after_patch (if player = 1 then p1t else p2t) p.move_num
@@ -937,6 +983,9 @@ module Move = struct
             pps
             upd_rem_list
       in
+      if player = 1
+      then Game_board.print_filled_slots upd_state.p1qb
+      else Game_board.print_filled_slots upd_state.p2qb;
       upd_state
   ;;
 

@@ -42,6 +42,18 @@ let move_neut_token (pos : int) (init : bool) =
   if String.equal ty "function" then ignore (fun_call fn [| inject pos |]) else ()
 ;;
 
+let update_patch_rotation (pl : Patch.t list) (pnum : int) (rot : int) =
+  let rec walk l acc =
+    match l with
+    | [] -> List.rev acc
+    | (hd : Patch.t) :: tl ->
+      if hd.pos_around_board = pnum
+      then walk tl ({ hd with rotated = rot } :: acc)
+      else walk tl (hd :: acc)
+  in
+  walk pl []
+;;
+
 let initialize_patches (pl : Patch.t list) (np : int) =
   let rec process_patch
             (pl : Patch.t list)
@@ -308,6 +320,7 @@ let game_component =
       ~callback:
         (let%map () = Bonsai.Value.return ()
          and set_seen_first = set_seen_first
+         and set_game_state = set_game_state
          and seen_first = seen_first in
          fun (gs : Hw2_patchwork_logic.Game_state.t) ->
            let js_effect =
@@ -332,8 +345,26 @@ let game_component =
                   dim_ineligible_patches dim_slot)
                ()
            in
+           let upd_rot_effect =
+             Bonsai.Effect.of_sync_fun
+               (fun () ->
+                  Js_of_ocaml.Js.Unsafe.set
+                    Js_of_ocaml.Js.Unsafe.global
+                    "updatePatchRotation"
+                    (Js_of_ocaml.Js.wrap_callback (fun (pnum : float) (rot : float) ->
+                       let patch_pos = int_of_float pnum in
+                       let num_rots = int_of_float rot in
+                       log "update patch rotation called";
+                       let upd_patch_list =
+                         update_patch_rotation gs.patches patch_pos num_rots
+                       in
+                       let upd_st = { gs with patches = upd_patch_list } in
+                       let effect = set_game_state upd_st in
+                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect)))
+               ()
+           in
            if not seen_first
-           then Bonsai.Effect.Many [ set_seen_first true; js_effect ]
+           then Bonsai.Effect.Many [ set_seen_first true; js_effect; upd_rot_effect ]
            else js_effect)
   in
   let%arr status = status in

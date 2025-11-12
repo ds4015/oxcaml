@@ -253,16 +253,21 @@ const close_button_1 = new THREE.Group();
 const close_button_2 = new THREE.Group();
 const big_back_g = new THREE.BoxGeometry(0.07, 0.07, 0.02);
 const big_back_m = new THREE.MeshBasicMaterial({ color: 0x9b9bc2 });
-const big_back = new THREE.Mesh(big_back_g, big_back_m);
 const little_back_g = new THREE.BoxGeometry(0.06, 0.06, 0.02);
 const little_back_m = new THREE.MeshBasicMaterial({ color: 0xff004d });
-const little_back = new THREE.Mesh(little_back_g, little_back_m);
-big_back.position.set(0, 0, 0);
-little_back.position.set(0, 0, 0.01);
-close_button_1.add(big_back);
-close_button_1.add(little_back);
-close_button_2.add(big_back);
-close_button_2.add(little_back);
+const big_back_1 = new THREE.Mesh(big_back_g, big_back_m);
+const little_back_1 = new THREE.Mesh(little_back_g, little_back_m);
+const big_back_2 = new THREE.Mesh(big_back_g, big_back_m);
+const little_back_2 = new THREE.Mesh(little_back_g, little_back_m);
+
+big_back_1.position.set(0, 0, 0);
+little_back_1.position.set(0, 0, 0.01);
+big_back_2.position.set(0, 0, 0);
+little_back_2.position.set(0, 0, 0.01);
+close_button_1.add(big_back_1);
+close_button_1.add(little_back_1);
+close_button_2.add(big_back_2);
+close_button_2.add(little_back_2);
 close_button_1.position.set(-2.8, 0.65, 0);
 close_button_2.position.set(2.8, 0.65, 0);
 
@@ -787,6 +792,7 @@ p2_tt.add(tt2_outline);
 
 /* patches */
 let patches_built = false;
+let rotation_count = 0;
 
 const patches = new THREE.Group();
 
@@ -960,6 +966,7 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (event.button != 0) return;
   const rect = renderer.domElement.getBoundingClientRect();
 
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -992,6 +999,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     let camTarget;
     let camTargetLookAt;
     const player_turn = getPlayerTurn();
+    console.log("player turn: ", player_turn);
     if (player_turn === 1) {
       camTarget = new THREE.Vector3(-2.2, 0, 1);
       camTargetLookAt = new THREE.Vector3(-2.2, 0, 0);
@@ -1022,6 +1030,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     scene.remove(chosen);
     scene.add(patch_clone);
     manipulating = patch_clone;
+    console.log(current_close_button.position);
     scene.add(current_close_button);
     toggle_orbit_controls("off");
   }
@@ -1042,6 +1051,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       placing = false;
       removeCirclePatch(patch);
       manipulating = null;
+      rotation_count = 0;
       const turn = getPlayerTurn();
       if (turn === 1) {
         current_quilt_board = p1_quilt_board;
@@ -1076,8 +1086,11 @@ renderer.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
 renderer.domElement.addEventListener("pointerdown", (e) => {
   if (e.button === 2) {
     if (placing) {
-      patch_clone.rotation.z -= Math.PI / 2;
-      if (patch_clone.rotation.z < 0) patch_clone.rotation.z += 2 * Math.PI;
+      rotation_count += 1;
+      let pnum = manipulating.userData.pos;
+      window.updatePatchRotation(pnum, rotation_count);
+      patch_clone.rotation.z += Math.PI / 2;
+      if (patch_clone.rotation.z < 0) patch_clone.rotation.z -= 2 * Math.PI;
     }
   }
 });
@@ -1119,6 +1132,7 @@ renderer.domElement.addEventListener("pointermove", (event) => {
 
 /* close quilt board/patch place view */
 function close_window(destroy) {
+  rotation_count = 0;
   tSlide = 0;
   qbAnimating = true;
   moveCam(new THREE.Vector3(0, 0, 2.3), new THREE.Vector3(0, 0, 0), false);
@@ -1369,7 +1383,6 @@ function animate() {
     if (qbAnimating) {
       const qbSpeed = 0.03;
       tSlide += qbSpeed;
-      console.log(tSlide);
       if (tSlide >= 1) {
         tSlide = 1;
         qbAnimating = false;
