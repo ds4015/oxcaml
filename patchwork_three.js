@@ -10,6 +10,8 @@ import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+
 import {
   CSS3DRenderer,
   CSS3DObject,
@@ -110,71 +112,50 @@ fontLoader.load("img3d/Princess Sofia_Regular.json", (font) => {
   //scene.add(logo);
 });
 
-/* responsive canvas */
-window.addEventListener("resize", onWindowResize);
-
-const TARGET_ASPECT = 16 / 9;
-function onWindowResize() {
-  const vw = window.innerWidth;
-  const width = vw;
-  const height = Math.round(width / TARGET_ASPECT);
-
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  camera2.aspect = width / height;
-  camera2.updateProjectionMatrix();
-
-  renderer.setSize(width, height);
-  labelRenderer.setSize(width, height);
-
-  // Calculate centering offset for letterboxing
-  const vh = window.innerHeight;
-  const topOffset = Math.round((vh - height) / 2);
-  // Apply the same positioning to both renderers
-  renderer.domElement.style.width = width + "px";
-  renderer.domElement.style.height = height + "px";
-  renderer.domElement.style.top = "0px";
-  renderer.domElement.style.left = "0px";
-
-  labelRenderer.domElement.style.width = width + "px";
-  labelRenderer.domElement.style.height = height + "px";
-  labelRenderer.domElement.style.top = topOffset + "px";
-  labelRenderer.domElement.style.left = "0px";
-
-  vw_to_local();
-}
-
-/* skybox */
-let skydome;
-let skydome2;
-const colorTex = texLoader.load("img3d/-Color.png", (tex) => {
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.magFilter = THREE.LinearFilter;
-  tex.minFilter = THREE.LinearFilter;
-});
-const objLoader = new OBJLoader();
-objLoader.load("img3d/uvsphere_3.obj", (obj) => {
-  obj.traverse((child) => {
-    if (child.isMesh) {
-      child.material = new THREE.MeshBasicMaterial({
-        map: colorTex,
-        side: THREE.BackSide,
-      });
-    }
+/* patch info overlay */
+let PAR_TEXT_FONT = null;
+let patch_info_1 = new THREE.Group();
+let patch_info_2 = null;
+let patch_info = patch_info_1;
+fontLoader.load("img3d/Kranky_Regular.json", (font) => {
+  PAR_TEXT_FONT = font;
+  const patch_inf_g = new TextGeometry("Cost: \n\nTime: \n\nIncome: ", {
+    font: font,
+    size: 0.05,
+    depth: 0.005,
+    curveSegments: 24,
+    bevelEnabled: true,
+    bevelThickness: 0.01,
+    bevelSize: 0.005,
+    bevelSegments: 5,
   });
-
-  obj.scale.set(300, 300, 300);
-  skydome = obj;
-  skydome2 = obj.clone(true);
-  scene.add(obj);
-  scene2.add(skydome2);
+  patch_inf_g.computeBoundingBox();
+  patch_inf_g.center();
+  const patch_inf_m = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    specular: 0xffffff,
+    shininess: 10,
+  });
+  const textLight1 = new THREE.PointLight(0xffffff, 0.8, 2);
+  textLight1.position.set(-3, 0.2, 1.5);
+  scene.add(textLight1);
+  const patch_inf = new THREE.Mesh(patch_inf_g, patch_inf_m);
+  // patch_inf.position.set(-3.3, 0.1, 0);
+  patch_info_1.add(patch_inf);
+  const values_text = get_patch_values();
+  console.log(values_text);
+  if (values_text) patch_info_1.add(values_text);
 });
 
-/* hourglass */
-const hourglass_sand_geo = new THREE.ConeGeometry(1, 2.5, 15, 10);
+const button_cost_icon = make_button(0, 0, false);
+button_cost_icon.scale.set(0.5, 0.5, 0.5);
+button_cost_icon.position.set(0.15, 0.18, 0);
+patch_info_1.add(button_cost_icon);
+
+const hourglass_sand_geo = new THREE.ConeGeometry(1, 2.5, 25, 25);
 const hourglass_sand_m = new THREE.PointsMaterial({
   color: 0xc2b280,
-  size: 0.008,
+  size: 0.0007,
 });
 const woodColor = texLoader.load("img3d/wood-color.jpg");
 const woodNormal = texLoader.load("img3d/wood-normal.jpg");
@@ -214,17 +195,85 @@ hg_wood_bot.position.y = 3.502;
 const hourglass_bottom = new THREE.Mesh(hourglass_geo, glassMat);
 const hourglass_top = new THREE.Mesh(hourglass_geo, glassMat);
 hourglass_top.rotation.x += Math.PI;
-hourglass_top.position.y = 2.5;
+hourglass_top.position.y = 2;
 hourglass.add(hourglass_sand);
 hourglass.add(hourglass_bottom);
 hourglass.add(hourglass_top);
 hourglass.add(hg_wood_top);
 hourglass.add(hg_wood_bot);
-hourglass.scale.set(0.05, 0.05, 0.05);
-hourglass.position.z = -2;
-hourglass.position.x = -2.5;
-hourglass.position.y = 0.5;
-camera.add(hourglass);
+hourglass.scale.set(0.017, 0.017, 0.017);
+hourglass.position.z = 0;
+hourglass.position.x = 0.15;
+hourglass.position.y = -0.037;
+patch_info_1.add(hourglass);
+
+patch_info_1.position.set(-3.1, 0.16, 0.1);
+scene.add(patch_info);
+patch_info.visible = false;
+const patch_info_wobble = {
+  rot: 0.3,
+  amp: 0.05,
+  speed: 5,
+};
+
+/* responsive canvas */
+window.addEventListener("resize", onWindowResize);
+
+const TARGET_ASPECT = 16 / 9;
+function onWindowResize() {
+  const vw = window.innerWidth;
+  const width = vw;
+  const height = Math.round(width / TARGET_ASPECT);
+
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  camera2.aspect = width / height;
+  camera2.updateProjectionMatrix();
+
+  renderer.setSize(width, height);
+  labelRenderer.setSize(width, height);
+
+  const vh = window.innerHeight;
+  const topOffset = Math.round((vh - height) / 2);
+
+  renderer.domElement.style.width = width + "px";
+  renderer.domElement.style.height = height + "px";
+  renderer.domElement.style.top = "0px";
+  renderer.domElement.style.left = "0px";
+
+  labelRenderer.domElement.style.width = width + "px";
+  labelRenderer.domElement.style.height = height + "px";
+  labelRenderer.domElement.style.top = topOffset + "px";
+  labelRenderer.domElement.style.left = "0px";
+
+  vw_to_local();
+}
+
+/* skybox */
+let skydome;
+let skydome2;
+const colorTex = texLoader.load("img3d/-Color.png", (tex) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+});
+const objLoader = new OBJLoader();
+objLoader.load("img3d/uvsphere_3.obj", (obj) => {
+  obj.traverse((child) => {
+    if (child.isMesh) {
+      child.material = new THREE.MeshBasicMaterial({
+        map: colorTex,
+        side: THREE.BackSide,
+      });
+    }
+  });
+
+  obj.scale.set(300, 300, 300);
+  skydome = obj;
+  skydome2 = obj.clone(true);
+  scene.add(obj);
+  scene2.add(skydome2);
+});
 
 /* neut token model */
 let neutral_token;
@@ -274,14 +323,14 @@ close_button_2.position.set(2.8, 0.65, 0);
 let current_close_button = close_button_1;
 
 /* UI button currency icons */
-const b1 = make_button(0.05, 0.15);
+const b1 = make_button(0.05, 0.15, true);
 b1.rotation.y += 0.18;
 b1.rotation.z += 0.09;
-const b2 = make_button(0.9, 0.15);
+const b2 = make_button(0.9, 0.15, true);
 b2.rotation.y -= 0.18;
 b2.rotation.z -= 0.09;
 
-function make_button(x_pct, y_pct) {
+function make_button(x_pct, y_pct, for_ui) {
   const b_geom = new THREE.TorusGeometry(0.07, 0.01, 8, 24);
   const c_geom = new THREE.CircleGeometry(0.08, 32);
   const h_geom = new THREE.CircleGeometry(0.01, 32);
@@ -323,11 +372,13 @@ function make_button(x_pct, y_pct) {
   button.add(button_mesh);
   button.add(button_interior);
 
-  ui_elements.push(button);
-  ui_element_percentages.push(x_pct);
-  ui_element_percentages.push(y_pct);
-  camera.add(button);
-  vw_to_local();
+  if (for_ui) {
+    ui_elements.push(button);
+    ui_element_percentages.push(x_pct);
+    ui_element_percentages.push(y_pct);
+    camera.add(button);
+    vw_to_local();
+  }
   return button;
 }
 
@@ -907,6 +958,63 @@ function create_patches(
     }
   }
 }
+function get_patch_values() {
+  if (!placing) return;
+  const cost_val = manipulating.userData.cost;
+  const time_val = manipulating.userData.time;
+  const income_val = manipulating.userData.income;
+  const values_text = `${cost_val}\n\n${time_val}`;
+  const income_text = `${income_val}`;
+  console.log(cost_val, ", ", time_val, ", ", income_val);
+  const patch_inf_g = new TextGeometry(values_text, {
+    font: PAR_TEXT_FONT,
+    size: 0.05,
+    depth: 0.005,
+    curveSegments: 24,
+    bevelEnabled: true,
+    bevelThickness: 0.01,
+    bevelSize: 0.005,
+    bevelSegments: 5,
+  });
+
+  const patch_inf_m = new THREE.MeshPhongMaterial({
+    color: 0xdfaf35,
+    specular: 0xffffff,
+    shininess: 30,
+  });
+  const patch_inf_g2 = new TextGeometry(income_text, {
+    font: PAR_TEXT_FONT,
+    size: 0.05,
+    depth: 0.005,
+    curveSegments: 24,
+    bevelEnabled: true,
+    bevelThickness: 0.01,
+    bevelSize: 0.005,
+    bevelSegments: 5,
+  });
+  patch_inf_g.computeBoundingBox();
+  patch_inf_g.center();
+  const income_value_text = new THREE.Mesh(patch_inf_g2, patch_inf_m);
+  const patch_values_text = new THREE.Mesh(patch_inf_g, patch_inf_m);
+  income_value_text.userData.role = "value";
+  patch_values_text.userData.role = "value";
+  patch_values_text.position.set(0.3, 0.07, 0.1);
+  income_value_text.position.set(0.275, -0.21, 0.1);
+  //  patch_values_text.scale.set(0.15, 0.15, 0.15);
+  const player_turn = getPlayerTurn();
+  if (player_turn === 1) {
+    patch_info_1.add(patch_values_text);
+    patch_info_1.add(income_value_text);
+  } else {
+    if (!patch_info_2) {
+      patch_info_2 = patch_info_1.clone(true);
+      patch_info_2.position.set(1.2, 0.25, 0.02);
+      scene.add(patch_info_2);
+    }
+    patch_info_2.add(patch_values_text);
+    patch_info_2.add(income_value_text);
+  }
+}
 
 /* quilt boards */
 const p1_quilt_board = create_quilt_board(new THREE.Color(0x0000ff));
@@ -1001,6 +1109,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const player_turn = getPlayerTurn();
     console.log("player turn: ", player_turn);
     if (player_turn === 1) {
+      patch_info = patch_info_1;
       camTarget = new THREE.Vector3(-2.2, 0, 1);
       camTargetLookAt = new THREE.Vector3(-2.2, 0, 0);
       current_quilt_board = p1_quilt_board;
@@ -1030,7 +1139,14 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     scene.remove(chosen);
     scene.add(patch_clone);
     manipulating = patch_clone;
-    console.log(current_close_button.position);
+    get_patch_values();
+    if (player_turn === 2) {
+      patch_info = patch_info_2;
+      patch_info.visible = true;
+    } else {
+      patch_info = patch_info_1;
+      patch_info.visible = true;
+    }
     scene.add(current_close_button);
     toggle_orbit_controls("off");
   }
@@ -1132,6 +1248,23 @@ renderer.domElement.addEventListener("pointermove", (event) => {
 
 /* close quilt board/patch place view */
 function close_window(destroy) {
+  const toDestroy = [];
+  patch_info_1.traverse((obj) => {
+    if (obj.isMesh && obj.userData.role === "value") {
+      toDestroy.push(obj);
+    }
+  });
+  if (patch_info_2) {
+    patch_info_2.traverse((obj) => {
+      if (obj.isMesh && obj.userData.role === "value") {
+        toDestroy.push(obj);
+      }
+    });
+  }
+  toDestroy.forEach((mesh) => {
+    destroy_mesh(mesh);
+  });
+  patch_info.visible = false;
   rotation_count = 0;
   tSlide = 0;
   qbAnimating = true;
@@ -1316,12 +1449,12 @@ function build_ui_overlay() {
 
   div_cont.appendChild(div_info);
 
-  const patch_info = new CSS3DObject(div_cont);
+  const patch_info_1 = new CSS3DObject(div_cont);
 
-  patch_info.position.set(-3, 0.25, 0.02);
-  patch_info.scale.set(0.0025, 0.0025, 0.0025);
+  patch_info_1.position.set(-3, 0.25, 0.02);
+  patch_info_1.scale.set(0.0025, 0.0025, 0.0025);
 
-  // scene.add(patch_info);
+  // scene.add(patch_info_1);
   ui_overlay_built = true;
 }
 
@@ -1370,6 +1503,7 @@ function position_token(pnum, pos) {
 
 let current_scene = scene;
 
+/* render loop */
 function animate() {
   if (openAnimating || qbAnimating) {
     if (openAnimating) {
@@ -1395,6 +1529,12 @@ function animate() {
     currentLookAt.lerpVectors(camStartLookAt, camTargetLookAt, t);
     camera.lookAt(currentLookAt);
   }
+  hourglass.rotation.y += 0.04;
+
+  const wobbleT = performance.now() * 0.001;
+  patch_info.rotation.y =
+    patch_info_wobble.rot +
+    Math.sin(wobbleT * patch_info_wobble.speed) * patch_info_wobble.amp;
 
   tPulse += 0.05;
   const pulse = 1 + Math.sin(tPulse) * 0.05;
