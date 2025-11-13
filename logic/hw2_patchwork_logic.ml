@@ -872,6 +872,7 @@ module Move = struct
   let choose_move state mv patch_choice r c =
     let player_moving = state.Game_state.turn in
     let player = player_moving.player_num in
+    log ("Player moving: " ^ string_of_int player);
     let p1t = state.Game_state.tk1 in
     let p2t = state.Game_state.tk2 in
     let pqb = if player = 1 then state.p1qb else state.p2qb in
@@ -956,6 +957,7 @@ module Move = struct
         else p2t.owned_by
       in
       let updated_neut = Token.move_neut_token p.pos_around_board in
+      log ("Next turn: " ^ string_of_int next_turn.player_num);
       let upd_state =
         if player = 1
         then

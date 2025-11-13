@@ -446,6 +446,7 @@ function create_grid_cells() {
   for (let i = 6; i < 14; i++) board_cell_position_numbers.push(i);
   full_singles_row(8, 2);
   board_cell_position_numbers.push(4);
+
   board_cell_position_numbers.push(30);
   for (let i = 46; i < 50; i++) board_cell_position_numbers.push(i);
   board_cell_position_numbers.push(36);
@@ -590,8 +591,8 @@ function create_grid_cells() {
   main_board_cells.push(r6c8);
   board_cell_position_numbers.push(1);
   board_cell_position_numbers.push(27);
+  board_cell_position_numbers.push(53);
   board_cell_position_numbers.push(52);
-  board_cell_position_numbers.push(51);
   board_cell_position_numbers.push(39);
   board_cell_position_numbers.push(18);
 
@@ -828,6 +829,7 @@ p2_tt.rotation.set(-1.57079, 0, 0);
 board.add(p1_tt);
 board.add(p2_tt);
 draggable.push(p1_tt);
+draggable.push(p2_tt);
 const tt1_edges = new THREE.EdgesGeometry(time_token_geometry_1);
 const tt1_outline = new THREE.LineSegments(
   tt1_edges,
@@ -839,7 +841,7 @@ const tt2_outline = new THREE.LineSegments(
   new THREE.LineBasicMaterial({ color: 0x000000 }),
 );
 //p1_tt.add(tt1_outline);
-p2_tt.add(tt2_outline);
+//p2_tt.add(tt2_outline);
 
 /* patches */
 let patches_built = false;

@@ -24,7 +24,7 @@ let reposition_time_tokens (p1 : int) (p2 : int) =
   else ()
 ;;
 
-let move_time_token (pnum : int) (pos : int) =
+let _move_time_token (pnum : int) (pos : int) =
   let open Js.Unsafe in
   let g = global in
   let fn = get g "positionToken" in
@@ -166,59 +166,79 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg ~set_statu
          fun game_state ->
            Bonsai.Effect.of_sync_fun
              (fun () ->
-                Js_of_ocaml.Js.Unsafe.set
-                  Js_of_ocaml.Js.Unsafe.global
-                  "bonsaiPlacePatch"
-                  (Js_of_ocaml.Js.wrap_callback
-                     (fun (r : float) (c : float) (pc : float) (time : float) ->
-                        try
-                          let row = int_of_float r in
-                          let col = int_of_float c in
-                          let patch_choice = int_of_float pc in
-                          let advance_spaces = int_of_float time in
-                          let gs : Hw2_patchwork_logic.Game_state.t = game_state in
-                          let player = gs.turn in
+                let rec install (state : Hw2_patchwork_logic.Game_state.t) =
+                  Js_of_ocaml.Js.Unsafe.set
+                    Js_of_ocaml.Js.Unsafe.global
+                    "updatePatchRotation"
+                    (Js_of_ocaml.Js.wrap_callback (fun (pnum : float) (rot : float) ->
+                       let patch_pos = int_of_float pnum in
+                       let num_rots = int_of_float rot in
+                       log "update patch rotation called";
+                       let upd_patch_list =
+                         update_patch_rotation state.patches patch_pos num_rots
+                       in
+                       let upd_st = { state with patches = upd_patch_list } in
+                       let effect = set_game_state upd_st in
+                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect;
+                       install upd_st));
+                  Js_of_ocaml.Js.Unsafe.set
+                    Js_of_ocaml.Js.Unsafe.global
+                    "bonsaiPlacePatch"
+                    (Js_of_ocaml.Js.wrap_callback
+                       (fun (r : float) (c : float) (pc : float) (time : float) ->
                           try
-                            let upd_state =
-                              Move.choose_move game_state PlacePatch patch_choice row col
-                            in
-                            let effect1 = set_game_state upd_state in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                            if player.player_num = 1
-                            then set_button_count 1 upd_state.tk1.owned_by.buttons_owned
-                            else set_button_count 2 upd_state.tk2.owned_by.buttons_owned;
-                            let status_advance_str =
-                              "Advanced " ^ string_of_int advance_spaces
-                            in
-                            let effect2 = set_status_msg status_advance_str in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                            let effect3 = set_status_bg "#5cb85c" in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect3;
-                            move_time_token player.player_num upd_state.tk1.position;
-                            Js_of_ocaml.Js._true
+                            let row = int_of_float r in
+                            let col = int_of_float c in
+                            let patch_choice = int_of_float pc in
+                            let advance_spaces = int_of_float time in
+                            let gs : Hw2_patchwork_logic.Game_state.t = state in
+                            let player = gs.turn in
+                            log
+                              ("BonsaiPlacePatch: player "
+                               ^ string_of_int player.player_num);
+                            try
+                              let upd_state =
+                                Move.choose_move gs PlacePatch patch_choice row col
+                              in
+                              let effect1 = set_game_state upd_state in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
+                              let status_advance_str =
+                                "Advanced " ^ string_of_int advance_spaces
+                              in
+                              let effect2 = set_status_msg status_advance_str in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
+                              let effect3 = set_status_bg "#5cb85c" in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect3;
+                              install upd_state;
+                              Js_of_ocaml.Js._true
+                            with
+                            | Button.Insufficient_funds ->
+                              let effect1 = set_status_msg "Not Enough Buttons" in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
+                              let effect2 = set_status_bg "#FF2C2C" in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
+                              install state;
+                              Js_of_ocaml.Js._false
+                            | Game_board.Out_of_bounds ->
+                              let effect1 = set_status_msg "Out of Bounds" in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
+                              let effect2 = set_status_bg "#FF2C2C" in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
+                              install state;
+                              Js_of_ocaml.Js._false
+                            | Game_board.Patch_does_not_fit_there ->
+                              let effect1 = set_status_msg "Patch Does Not Fit There" in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
+                              let effect2 = set_status_bg "#FF2C2C" in
+                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
+                              install state;
+                              Js_of_ocaml.Js._false
                           with
-                          | Button.Insufficient_funds ->
-                            let effect1 = set_status_msg "Not Enough Buttons" in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                            let effect2 = set_status_bg "#FF2C2C" in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                            Js_of_ocaml.Js._false
-                          | Game_board.Out_of_bounds ->
-                            let effect1 = set_status_msg "Out of Bounds" in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                            let effect2 = set_status_bg "#FF2C2C" in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                            Js_of_ocaml.Js._false
-                          | Game_board.Patch_does_not_fit_there ->
-                            let effect1 = set_status_msg "Patch Does Not Fit There" in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                            let effect2 = set_status_bg "#FF2C2C" in
-                            Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                            Js_of_ocaml.Js._false
-                        with
-                        | exn ->
-                          log ("OCaml: unexpected exn: " ^ Exn.to_string exn);
-                          Js_of_ocaml.Js._false)))
+                          | exn ->
+                            log ("OCaml: unexpected exn: " ^ Exn.to_string exn);
+                            Js_of_ocaml.Js._false))
+                in
+                install game_state)
              ())
   in
   let%arr () = Bonsai.Value.return () in
@@ -256,18 +276,13 @@ let advance_component ~game_state ~set_game_state ~set_status_msg ~set_status_bg
                          game_state.tk1.position
                          game_state.tk2.position)
                      else (
-                       let player = gs.turn in
                        let upd_state = Move.choose_move game_state Advance 0 0 0 in
                        let effect1 = set_game_state upd_state in
                        Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                       if player.player_num = 1
-                       then set_button_count 1 upd_state.tk1.owned_by.buttons_owned
-                       else set_button_count 2 upd_state.tk2.owned_by.buttons_owned;
                        let effect2 = set_status_msg "Advanced!" in
                        Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
                        let effect3 = set_status_bg "#5cb85c" in
-                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect3;
-                       move_time_token player.player_num n))))
+                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect3))))
              ())
   in
   let%arr () = Bonsai.Value.return () in
@@ -320,7 +335,6 @@ let game_component =
       ~callback:
         (let%map () = Bonsai.Value.return ()
          and set_seen_first = set_seen_first
-         and set_game_state = set_game_state
          and seen_first = seen_first in
          fun (gs : Hw2_patchwork_logic.Game_state.t) ->
            let js_effect =
@@ -345,26 +359,8 @@ let game_component =
                   dim_ineligible_patches dim_slot)
                ()
            in
-           let upd_rot_effect =
-             Bonsai.Effect.of_sync_fun
-               (fun () ->
-                  Js_of_ocaml.Js.Unsafe.set
-                    Js_of_ocaml.Js.Unsafe.global
-                    "updatePatchRotation"
-                    (Js_of_ocaml.Js.wrap_callback (fun (pnum : float) (rot : float) ->
-                       let patch_pos = int_of_float pnum in
-                       let num_rots = int_of_float rot in
-                       log "update patch rotation called";
-                       let upd_patch_list =
-                         update_patch_rotation gs.patches patch_pos num_rots
-                       in
-                       let upd_st = { gs with patches = upd_patch_list } in
-                       let effect = set_game_state upd_st in
-                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect)))
-               ()
-           in
            if not seen_first
-           then Bonsai.Effect.Many [ set_seen_first true; js_effect; upd_rot_effect ]
+           then Bonsai.Effect.Many [ set_seen_first true; js_effect ]
            else js_effect)
   in
   let%arr status = status in
