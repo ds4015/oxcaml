@@ -294,7 +294,7 @@ objLoader.load("img3d/neut.obj", (obj) => {
   obj.position.y = -0.23;
   neutral_token = obj;
   window.moveNeutralToken(neut_init_pos);
-  scene.add(neutral_token);
+  patches.add(neutral_token);
 });
 
 /* quilt board close buttons */
@@ -329,6 +329,34 @@ b1.rotation.z += 0.09;
 const b2 = make_button(0.9, 0.15, true);
 b2.rotation.y -= 0.18;
 b2.rotation.z -= 0.09;
+
+const button_cache = new THREE.Group();
+make_and_place_button_cache();
+function make_and_place_button_cache() {
+  for (let i = 0; i < 15; i++) {
+    const stack = make_button_stack(10);
+    button_cache.add(stack);
+  }
+
+  for (let i = 0; i < button_cache.children.length; i++) {
+    let alpha = Math.PI / 2 - 0.418879 * i;
+    let x = Math.cos(alpha) * 1.1;
+    let z = Math.sin(alpha) * 1.1;
+    button_cache.children[i].position.set(x, -1.2, z);
+  }
+}
+const stack1 = make_button_stack(10);
+stack1.position.set(0, -1.2, 0.7);
+scene.add(button_cache);
+function make_button_stack(num) {
+  const stack = new THREE.Group();
+  for (let i = 0; i < num; i++) {
+    const jitter = THREE.MathUtils.randFloat(-0.02, 0.02);
+    const button = make_button(jitter, i * 0.022, false);
+    stack.add(button);
+  }
+  return stack;
+}
 
 function make_button(x_pct, y_pct, for_ui) {
   const b_geom = new THREE.TorusGeometry(0.07, 0.01, 8, 24);
@@ -378,6 +406,9 @@ function make_button(x_pct, y_pct, for_ui) {
     ui_element_percentages.push(y_pct);
     camera.add(button);
     vw_to_local();
+  } else {
+    button.position.set(x_pct, y_pct, 0);
+    button.rotation.x -= Math.PI / 2;
   }
   return button;
 }
@@ -1546,7 +1577,8 @@ function animate() {
   if (skydome) skydome.rotation.y += 0.001;
   if (skydome2) skydome2.rotation.y += 0.001;
   patches2.rotation.y += 0.02;
-  patches2.rotation.z += 0.02;
+  patches.rotation.z += 0.002;
+
   patches2.rotation.x += 0.02;
   board2.rotation.z += 0.005;
   hourglass_sand.rotation.y += 0.01;
@@ -1578,13 +1610,34 @@ window.dimIneligiblePatches = function (pos) {
     });
   }
 
-  function nextPos(p) {
-    return p === 33 ? 1 : p + 1;
-  }
+  let patch1;
+  let patch2;
+  let patch3;
 
-  const patch1 = nextPos(pos);
-  const patch2 = nextPos(patch1);
-  const patch3 = nextPos(patch2);
+  let k = pos + 1;
+  console.log(k);
+  let cycles = 0;
+  function find_next() {
+    if (k >= 32) k = 0;
+    while (patches.children[k].visible === false) {
+      k++;
+      if (k > 32) {
+        k = 0;
+        cycles++;
+      }
+      if (cycles > 1) break;
+    }
+  }
+  find_next();
+  console.log("k = ", k);
+  patch1 = k++;
+  find_next();
+  patch2 = k++;
+  console.log("k = ", k);
+  find_next();
+  patch3 = k;
+
+  console.log("patch1: ", patch1, ", patch2: ", patch2, "patch3: ", patch3);
 
   for (let i = 0; i < patches.children.length; i++) {
     const child = patches.children[i];
