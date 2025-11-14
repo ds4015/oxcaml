@@ -664,6 +664,7 @@ module Token = struct
   let move_token b (t : time_token) (opp : time_token) =
     let opp_pos = opp.position in
     let curr_pos = t.position in
+    log ("ai pos: " ^ string_of_int curr_pos ^ ", player pos: " ^ string_of_int opp_pos);
     let distance = abs (opp_pos - curr_pos) in
     Button.give_buttons b t.owned_by (distance + 1);
     let new_pos = if opp_pos + 1 >= 54 then 54 else opp_pos + 1 in

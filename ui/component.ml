@@ -50,6 +50,16 @@ let move_neut_token (pos : int) (init : bool) =
   if String.equal ty "function" then ignore (fun_call fn [| inject pos |]) else ()
 ;;
 
+let place_ai_patch_on_qb (p : int) (r : int) (c : int) =
+  let open Js.Unsafe in
+  let g = global in
+  let fn = get g "placeAIPatch" in
+  let ty = Js.to_string (Js.typeof fn) in
+  if String.equal ty "function"
+  then ignore (fun_call fn [| inject p; inject r; inject c |])
+  else ()
+;;
+
 let update_patch_rotation (pl : Patch.t list) (pnum : int) (rot : int) =
   let rec walk l acc =
     match l with
@@ -60,6 +70,13 @@ let update_patch_rotation (pl : Patch.t list) (pnum : int) (rot : int) =
       else walk tl (hd :: acc)
   in
   walk pl []
+;;
+
+let delay (ms : int) (f : unit -> unit) =
+  ignore
+    (Js_of_ocaml.Dom_html.window##setTimeout
+       (Js_of_ocaml.Js.wrap_callback f)
+       (float_of_int ms))
 ;;
 
 let initialize_patches (pl : Patch.t list) (np : int) =
@@ -170,10 +187,10 @@ let winner_component ~game_state =
              let p2_score = snd scores in
              let message =
                if p1_score > p2_score
-               then Printf.sprintf "Player wins! %d-%d" p1_score p2_score
+               then Printf.sprintf "Player wins! %d to %d" p1_score p2_score
                else if p2_score > p1_score
-               then Printf.sprintf "AI wins! %d-%d" p2_score p1_score
-               else Printf.sprintf "Tie! %d-%d" p1_score p2_score
+               then Printf.sprintf "AI wins! %d to %d" p2_score p1_score
+               else Printf.sprintf "Tie! %d to %d" p1_score p2_score
              in
              set_msg message)
            else set_msg "")
@@ -225,7 +242,7 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg =
                             let row = int_of_float r in
                             let col = int_of_float c in
                             let patch_choice = int_of_float pc in
-                            let advance_spaces = int_of_float time in
+                            let _advance_spaces = int_of_float time in
                             let gs : Hw2_patchwork_logic.Game_state.t = state in
                             let player = gs.turn in
                             log
@@ -235,11 +252,15 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg =
                               let upd_state =
                                 Move.choose_move gs PlacePatch patch_choice row col
                               in
+                              reposition_time_tokens
+                                upd_state.tk1.position
+                                upd_state.tk2.position;
+                              if gs.turn.player_num = 1
+                              then set_button_count 1 upd_state.tk1.owned_by.buttons_owned
+                              else set_button_count 2 upd_state.tk2.owned_by.buttons_owned;
                               let effect1 = set_game_state upd_state in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              let status_advance_str =
-                                "Advanced " ^ string_of_int advance_spaces
-                              in
+                              let status_advance_str = "You Placed Patch" in
                               let effect2 = set_status_msg status_advance_str in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
                               install upd_state;
@@ -248,17 +269,14 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg =
                             | Button.Insufficient_funds ->
                               let effect1 = set_status_msg "Not Enough Buttons" in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              install state;
                               Js_of_ocaml.Js._false
                             | Game_board.Out_of_bounds ->
                               let effect1 = set_status_msg "Out of Bounds" in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              install state;
                               Js_of_ocaml.Js._false
                             | Game_board.Patch_does_not_fit_there ->
                               let effect1 = set_status_msg "Patch Does Not Fit There" in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              install state;
                               Js_of_ocaml.Js._false
                           with
                           | exn ->
@@ -295,11 +313,6 @@ let advance_component ~game_state ~set_game_state ~set_status_msg =
                      let opp_tok_pos =
                        if gs.turn.player_num = 1 then gs.tk2.position else gs.tk1.position
                      in
-                     log
-                       ("opp_tok_pos: "
-                        ^ string_of_int opp_tok_pos
-                        ^ ", n: "
-                        ^ string_of_int n);
                      if gs.turn.player_num = 1 && gs.tk1.position = 54
                      then (
                        let effect1 = set_status_msg "Already at End" in
@@ -317,6 +330,12 @@ let advance_component ~game_state ~set_game_state ~set_status_msg =
                          game_state.tk2.position)
                      else (
                        let upd_state = Move.choose_move game_state Advance 0 0 0 in
+                       reposition_time_tokens
+                         upd_state.tk1.position
+                         upd_state.tk2.position;
+                       if gs.turn.player_num = 1
+                       then set_button_count 1 upd_state.tk1.owned_by.buttons_owned
+                       else set_button_count 2 upd_state.tk2.owned_by.buttons_owned;
                        let spots_advanced =
                          if gs.turn.player_num = 1
                          then upd_state.tk1.position - gs.tk1.position
@@ -325,7 +344,7 @@ let advance_component ~game_state ~set_game_state ~set_status_msg =
                        play_button_flip_animation spots_advanced;
                        let effect1 = set_game_state upd_state in
                        Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                       let effect2 = set_status_msg "Advanced" in
+                       let effect2 = set_status_msg "You Advance" in
                        Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2))))
              ())
   in
@@ -376,33 +395,63 @@ let game_component =
       ~callback:
         (let%map () = Bonsai.Value.return ()
          and set_seen_first = set_seen_first
+         and set_game_state = set_game_state
+         and set_status_msg = set_status_msg
          and seen_first = seen_first in
          fun (gs : Hw2_patchwork_logic.Game_state.t) ->
-           let js_effect =
+           if gs.turn.player_num = 2
+           then
              Bonsai.Effect.of_sync_fun
                (fun () ->
-                  Js_of_ocaml.Js.Unsafe.set
-                    Js_of_ocaml.Js.Unsafe.global
-                    "queryPlayerTurn"
-                    (Js_of_ocaml.Js.wrap_callback (fun () ->
-                       Js_of_ocaml.Js.number_of_float (float_of_int gs.turn.player_num)));
-                  reposition_time_tokens gs.tk1.position gs.tk2.position;
-                  set_button_count 1 gs.tk1.owned_by.buttons_owned;
-                  set_button_count 2 gs.tk2.owned_by.buttons_owned;
-                  if seen_first then move_neut_token gs.neut.pos false;
-                  let dim_slot =
-                    if seen_first
-                    then gs.neut.pos
-                    else if gs.neut.pos = 1
-                    then 33
-                    else gs.neut.pos - 1
-                  in
-                  dim_ineligible_patches dim_slot)
+                  delay 2000 (fun () ->
+                    let mv, p, r, c = Hw4_patchwork_ai_heuristics.determine_move gs in
+                    match mv with
+                    | Move.PlacePatch ->
+                      place_ai_patch_on_qb p r c;
+                      let upd = Move.choose_move gs Move.PlacePatch p r c in
+                      reposition_time_tokens upd.tk1.position upd.tk2.position;
+                      set_button_count 1 upd.tk1.owned_by.buttons_owned;
+                      set_button_count 2 upd.tk2.owned_by.buttons_owned;
+                      Bonsai_web.Effect.Expert.handle_non_dom_event_exn
+                        (set_game_state upd);
+                      Bonsai_web.Effect.Expert.handle_non_dom_event_exn
+                        (set_status_msg "AI Places Patch")
+                    | Move.Advance ->
+                      let upd = Move.choose_move gs Move.Advance 0 0 0 in
+                      reposition_time_tokens upd.tk1.position upd.tk2.position;
+                      set_button_count 1 upd.tk1.owned_by.buttons_owned;
+                      set_button_count 2 upd.tk2.owned_by.buttons_owned;
+                      Bonsai_web.Effect.Expert.handle_non_dom_event_exn
+                        (set_game_state upd);
+                      Bonsai_web.Effect.Expert.handle_non_dom_event_exn
+                        (set_status_msg "AI Advances")))
                ()
-           in
-           if not seen_first
-           then Bonsai.Effect.Many [ set_seen_first true; js_effect ]
-           else js_effect)
+           else (
+             let js_effect =
+               Bonsai.Effect.of_sync_fun
+                 (fun () ->
+                    Js_of_ocaml.Js.Unsafe.set
+                      Js_of_ocaml.Js.Unsafe.global
+                      "queryPlayerTurn"
+                      (Js_of_ocaml.Js.wrap_callback (fun () ->
+                         Js_of_ocaml.Js.number_of_float (float_of_int gs.turn.player_num)));
+                    reposition_time_tokens gs.tk1.position gs.tk2.position;
+                    set_button_count 1 gs.tk1.owned_by.buttons_owned;
+                    set_button_count 2 gs.tk2.owned_by.buttons_owned;
+                    if seen_first then move_neut_token gs.neut.pos false;
+                    let dim_slot =
+                      if seen_first
+                      then gs.neut.pos
+                      else if gs.neut.pos = 1
+                      then 33
+                      else gs.neut.pos - 1
+                    in
+                    dim_ineligible_patches dim_slot)
+                 ()
+             in
+             if not seen_first
+             then Bonsai.Effect.Many [ set_seen_first true; js_effect ]
+             else js_effect))
   in
   let%arr status = status
   and winner = winner in

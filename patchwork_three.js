@@ -1458,21 +1458,6 @@ function get_cell_under_token(tk) {
   let found = false;
   for (let i = 0; i < main_board_cells.length; i++) {
     const box = new THREE.Box3().setFromObject(main_board_cells[i]);
-    console.log("i: ", i, ", cell position: ", board_cell_position_numbers[i]);
-    console.log(
-      "token_pos: ",
-      token_pos.x,
-      ", ",
-      token_pos.y,
-      "; box pos: ",
-      box.min.x,
-      ", ",
-      box.max.x,
-      ", ",
-      box.min.y,
-      ", ",
-      box.max.y,
-    );
 
     if (
       token_pos.x >= box.min.x &&
@@ -1607,12 +1592,11 @@ function animate() {
   }
   if (flipAnimating) {
     const flipSpeed = 0.002;
-    console.log("children in flipping: ", flipping.children.length);
     const player_turn = getPlayerTurn();
     for (let i = 0; i < flipping.children.length; i++) {
       const x_off = THREE.MathUtils.randFloat(0.01, 0.02);
-      let sign = 1;
-      if (player_turn === 2) sign = -1;
+      let sign = -1;
+      if (player_turn === 2) sign = 1;
       flipping.children[i].position.y += 0.03;
       flipping.children[i].rotation.x += 0.2;
       flipping.children[i].position.x += sign * x_off;
@@ -1621,8 +1605,6 @@ function animate() {
     if (tFlip >= 1) {
       tFlip = 1;
       flipAnimating = false;
-      destroy_mesh(flipping);
-      flipping = null;
     }
 
     if (spinAnimating) {
@@ -1701,18 +1683,18 @@ window.dimIneligiblePatches = function (pos) {
 
   let k = pos;
   console.log(k);
-  if (k === 32 && patches.children.length > 0) k = 0;
+  if (k > 32 && patches.children.length > 0) k = 0;
   while (patches.children[k].visible === false) {
     k++;
   }
   let patch1 = patches.children[k++];
-  if (k === 32 && patches.children.length > 0) k = 0;
+  if (k > 32 && patches.children.length > 0) k = 0;
   console.log(k);
   while (patches.children[k].visible === false) {
     k++;
   }
   let patch2 = patches.children[k++];
-  if (k === 32 && patches.children.length > 0) k = 0;
+  if (k > 32 && patches.children.length > 0) k = 0;
   console.log(k);
   while (patches.children[k].visible === false) {
     k++;
@@ -1742,14 +1724,11 @@ window.dimIneligiblePatches = function (pos) {
 };
 
 window.playButtonFlipAnimation = function (num) {
-  console.log(
-    "start cam position: ",
-    camera.position,
-    ", start cam rot: ",
-    camera.rotation.y,
-  );
-
-  console.log("three: called play flip anim w/", num);
+  if (flipping) {
+    destroy_mesh(flipping);
+    flipping = null;
+    flipAnimating = false;
+  }
   makeButtonsToFlip(num);
   flipAnimating = true;
 };
@@ -1781,6 +1760,40 @@ window.moveNeutralTokenInitial = function (pos) {
       break;
     }
   }
+};
+
+window.placeAIPatch = function (patch_num, row, col) {
+  let patch;
+  let cell;
+  console.log("placing patch ", patch_num, " at ", row, ", ", col);
+  for (let i = 0; i < patches.children.length; i++) {
+    if (i === patch_num - 1) {
+      patch = patches.children[i];
+    }
+  }
+  for (let i = 0; i < p2_quilt_board.children.length; i++) {
+    if (
+      p2_quilt_board.children[i].userData.row === row &&
+      p2_quilt_board.children[i].userData.col === col
+    )
+      cell = p2_quilt_board.children[i];
+  }
+  const patch_clone = patch.clone(true);
+  patch_clone.scale.set(1.8, 1.8, 1.8);
+  patch_clone.traverse((o) => {
+    if (o.isMesh) {
+      o.material = o.material.clone();
+      o.material.transparent = false;
+      o.material.opacity = 1;
+      o.material.wireframe = false;
+    }
+  });
+  patch_clone.visible = true;
+  patch_clone.position.copy(cell.position);
+  patch_clone.position.z = (patch_clone.position.z ?? 0) + 0.02;
+  patch_clone.rotation.copy(patch.userData.orig_rot);
+  p2_quilt_board.add(patch_clone);
+  patch.visible = false;
 };
 
 window.moveNeutralToken = function (pos) {
