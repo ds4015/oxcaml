@@ -14,6 +14,14 @@ let dim_ineligible_patches (pos : int) =
   if String.equal ty "function" then ignore (fun_call fn [| inject pos |]) else ()
 ;;
 
+let play_button_flip_animation (num : int) =
+  let open Js.Unsafe in
+  let g = global in
+  let fn = get g "playButtonFlipAnimation" in
+  let ty = Js.to_string (Js.typeof fn) in
+  if String.equal ty "function" then ignore (fun_call fn [| inject num |]) else ()
+;;
+
 let reposition_time_tokens (p1 : int) (p2 : int) =
   let open Js.Unsafe in
   let g = global in
@@ -132,37 +140,64 @@ let pieces =
   Game_pieces.setup_game player_name "AI" "Red" "Blue"
 ;;
 
-let status_message_component ~message ~bg_color =
+let status_message_component ~message =
   let%sub msg, set_msg = Bonsai.state (module String) ~default_model:message in
-  let%sub bg, set_bg = Bonsai.state (module String) ~default_model:bg_color in
   let%arr msg = msg
-  and set_msg = set_msg
-  and bg = bg
-  and set_bg = set_bg in
+  and set_msg = set_msg in
   let attrs =
-    let base =
-      [ Vdom.Attr.id "status-message"
-      ; Vdom.Attr.class_ "status-message"
-      ; Vdom.Attr.style (Css_gen.background_color (`Hex bg))
-      ]
-    in
+    let base = [ Vdom.Attr.id "status-message"; Vdom.Attr.class_ "status-message" ] in
     if String.is_empty msg
     then base
     else
       Vdom.Attr.class_ "show" :: Vdom.Attr.on_animationend (fun _ev -> set_msg "") :: base
   in
-  Vdom.Node.div ~attrs [ Vdom.Node.text msg ], set_msg, set_bg
+  Vdom.Node.div ~attrs [ Vdom.Node.text msg ], set_msg
 ;;
 
-let place_patch_component ~game_state ~set_game_state ~set_status_msg ~set_status_bg =
+let winner_component ~game_state =
+  let%sub msg, set_msg = Bonsai.state (module String) ~default_model:"" in
+  let%sub () =
+    Bonsai.Edge.on_change
+      (module Hw2_patchwork_logic.Game_state)
+      game_state
+      ~callback:
+        (let%map set_msg = set_msg in
+         fun (gs : Hw2_patchwork_logic.Game_state.t) ->
+           if gs.tk1.position = 54 && gs.tk2.position = 54
+           then (
+             let scores = Move.score_game gs in
+             let p1_score = fst scores in
+             let p2_score = snd scores in
+             let message =
+               if p1_score > p2_score
+               then Printf.sprintf "Player wins! %d-%d" p1_score p2_score
+               else if p2_score > p1_score
+               then Printf.sprintf "AI wins! %d-%d" p2_score p1_score
+               else Printf.sprintf "Tie! %d-%d" p1_score p2_score
+             in
+             set_msg message)
+           else set_msg "")
+  in
+  let%arr msg = msg
+  and set_msg = set_msg in
+  let attrs =
+    let base = [ Vdom.Attr.id "winner-message"; Vdom.Attr.class_ "winner-message" ] in
+    if String.is_empty msg
+    then base
+    else
+      Vdom.Attr.class_ "show" :: Vdom.Attr.on_animationend (fun _ev -> set_msg "") :: base
+  in
+  Vdom.Node.div ~attrs [ Vdom.Node.text msg ], set_msg
+;;
+
+let place_patch_component ~game_state ~set_game_state ~set_status_msg =
   let%sub () =
     Bonsai.Edge.on_change
       (module Game_state)
       game_state
       ~callback:
         (let%map set_game_state = set_game_state
-         and set_status_msg = set_status_msg
-         and set_status_bg = set_status_bg in
+         and set_status_msg = set_status_msg in
          fun game_state ->
            Bonsai.Effect.of_sync_fun
              (fun () ->
@@ -207,30 +242,22 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg ~set_statu
                               in
                               let effect2 = set_status_msg status_advance_str in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                              let effect3 = set_status_bg "#5cb85c" in
-                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect3;
                               install upd_state;
                               Js_of_ocaml.Js._true
                             with
                             | Button.Insufficient_funds ->
                               let effect1 = set_status_msg "Not Enough Buttons" in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              let effect2 = set_status_bg "#FF2C2C" in
-                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
                               install state;
                               Js_of_ocaml.Js._false
                             | Game_board.Out_of_bounds ->
                               let effect1 = set_status_msg "Out of Bounds" in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              let effect2 = set_status_bg "#FF2C2C" in
-                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
                               install state;
                               Js_of_ocaml.Js._false
                             | Game_board.Patch_does_not_fit_there ->
                               let effect1 = set_status_msg "Patch Does Not Fit There" in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              let effect2 = set_status_bg "#FF2C2C" in
-                              Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
                               install state;
                               Js_of_ocaml.Js._false
                           with
@@ -245,7 +272,7 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg ~set_statu
   Vdom.Node.none
 ;;
 
-let advance_component ~game_state ~set_game_state ~set_status_msg ~set_status_bg =
+let advance_component ~game_state ~set_game_state ~set_status_msg =
   let%sub _position_on_mb, _set_position_on_mb =
     Bonsai.state (module Int) ~default_model:1
   in
@@ -255,8 +282,7 @@ let advance_component ~game_state ~set_game_state ~set_status_msg ~set_status_bg
       game_state
       ~callback:
         (let%map set_game_state = set_game_state
-         and set_status_msg = set_status_msg
-         and set_status_bg = set_status_bg in
+         and set_status_msg = set_status_msg in
          fun game_state ->
            Bonsai.Effect.of_sync_fun
              (fun () ->
@@ -266,23 +292,41 @@ let advance_component ~game_state ~set_game_state ~set_status_msg ~set_status_bg
                   (Js_of_ocaml.Js.wrap_callback (fun (i : float) ->
                      let n = int_of_float i in
                      let gs : Hw2_patchwork_logic.Game_state.t = game_state in
-                     if n <> gs.tk2.position + 1
+                     let opp_tok_pos =
+                       if gs.turn.player_num = 1 then gs.tk2.position else gs.tk1.position
+                     in
+                     log
+                       ("opp_tok_pos: "
+                        ^ string_of_int opp_tok_pos
+                        ^ ", n: "
+                        ^ string_of_int n);
+                     if gs.turn.player_num = 1 && gs.tk1.position = 54
+                     then (
+                       let effect1 = set_status_msg "Already at End" in
+                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1)
+                     else if gs.turn.player_num = 2 && gs.tk2.position = 54
+                     then (
+                       let effect1 = set_status_msg "Already at End" in
+                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1)
+                     else if n <> 54 && n <> opp_tok_pos + 1
                      then (
                        let effect1 = set_status_msg "Invalid Move" in
                        Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                       let effect2 = set_status_bg "#FF2C2C" in
-                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
                        reposition_time_tokens
                          game_state.tk1.position
                          game_state.tk2.position)
                      else (
                        let upd_state = Move.choose_move game_state Advance 0 0 0 in
+                       let spots_advanced =
+                         if gs.turn.player_num = 1
+                         then upd_state.tk1.position - gs.tk1.position
+                         else upd_state.tk2.position - gs.tk2.position
+                       in
+                       play_button_flip_animation spots_advanced;
                        let effect1 = set_game_state upd_state in
                        Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                       let effect2 = set_status_msg "Advanced!" in
-                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                       let effect3 = set_status_bg "#5cb85c" in
-                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect3))))
+                       let effect2 = set_status_msg "Advanced" in
+                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2))))
              ())
   in
   let%arr () = Bonsai.Value.return () in
@@ -294,16 +338,13 @@ let game_component =
   let%sub game_state, set_game_state =
     Bonsai.state (module Hw2_patchwork_logic.Game_state) ~default_model:initial_state
   in
-  let%sub status, set_status_msg, set_status_bg =
-    status_message_component ~message:"" ~bg_color:"#ffffff"
-  in
+  let%sub status, set_status_msg = status_message_component ~message:"" in
   let%sub _place_patch =
-    place_patch_component ~game_state ~set_game_state ~set_status_msg ~set_status_bg
+    place_patch_component ~game_state ~set_game_state ~set_status_msg
   in
-  let%sub _advance =
-    advance_component ~game_state ~set_game_state ~set_status_msg ~set_status_bg
-  in
+  let%sub _advance = advance_component ~game_state ~set_game_state ~set_status_msg in
   let%sub seen_first, set_seen_first = Bonsai.state (module Bool) ~default_model:false in
+  let%sub winner, _set_winner = winner_component ~game_state in
   let%sub () =
     Bonsai.Edge.lifecycle
       ~on_activate:
@@ -363,7 +404,8 @@ let game_component =
            then Bonsai.Effect.Many [ set_seen_first true; js_effect ]
            else js_effect)
   in
-  let%arr status = status in
+  let%arr status = status
+  and winner = winner in
   Vdom.Node.div
     ~attrs:[ Vdom.Attr.id "patchwork_game" ]
     [ (* [ Vdom.Node.div ~attrs:[ Vdom.Attr.class_ "patch-info"; Vdom.Attr.id "patch-info"
@@ -374,6 +416,7 @@ let game_component =
          ] [ Vdom.Node.text "Time: " ] ; Vdom.Node.div ~attrs:[ Vdom.Attr.id "patch-time";
          Vdom.Attr.class_ "patch-value" ] [ Vdom.Node.text "2" ] ] ] *)
       status
+    ; winner
     ]
 ;;
 

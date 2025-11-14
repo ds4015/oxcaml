@@ -75,19 +75,39 @@ body {
 .status-message {
     display: none;
     width: 25vw;
-    white-space: no-wrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: clamp(0.5rem, 3vw, 1.5rem);
+
     height: 2vh;
-    border: 1px dashed #000000;
     text-align: center;
     padding: 12px;
     z-index: 100;
     position: absolute;
-    top: 5%;
+    top: 50%;
     opacity: 1;
-    left: 38%;
+    left: 37.5vw;
+    font-family: "Luxurious Roman", serif;
+    font-weight: 400;
+    opacity: 0.5;
+    font-style: normal;
+    font-size: clamp(1.5rem, 4vw, 5rem);
+}
+
+.winner-message {
+    display: block;
+    width: 25vw;
+
+    height: 2vh;
+    text-align: center;
+    padding: 12px;
+    z-index: 100;
+    position: absolute;
+    top: 50%;
+    opacity: 1;
+    left: 37.5vw;
+    font-family: "Luxurious Roman", serif;
+    font-weight: 400;
+    opacity: 1;
+    font-style: normal;
+    font-size: clamp(1.5rem, 4vw, 5rem);
 }
 
 .buy-patch {
@@ -104,14 +124,16 @@ body {
 
 .status-message.show {
     display: block;
-    animation: fadeout 1.5s linear 1s;
+    animation: fadeout 1.5s linear;
 }
 
 @keyframes fadeout {
     from {
+        top: 50%;
         opacity: 1;
     }
     to {
+        top: 0%;
         opacity: 0;
         display: none;
     }

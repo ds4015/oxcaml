@@ -77,6 +77,9 @@ const p2_buttons = document.getElementById("p2-buttons");
 const player_name = document.getElementById("player-box-1");
 const ai_name = document.getElementById("player-box-2");
 
+let spinT = 0;
+let spinAngle = 0;
+let spinAnimating = false;
 const ui_elements = [];
 let ui_element_percentages = [];
 let clickables = [];
@@ -329,7 +332,7 @@ b1.rotation.z += 0.09;
 const b2 = make_button(0.9, 0.15, true);
 b2.rotation.y -= 0.18;
 b2.rotation.z -= 0.09;
-
+let rot_ct = 1;
 const button_cache = new THREE.Group();
 make_and_place_button_cache();
 function make_and_place_button_cache() {
@@ -347,7 +350,7 @@ function make_and_place_button_cache() {
 }
 const stack1 = make_button_stack(10);
 stack1.position.set(0, -1.2, 0.7);
-scene.add(button_cache);
+//scene.add(button_cache);
 function make_button_stack(num) {
   const stack = new THREE.Group();
   for (let i = 0; i < num; i++) {
@@ -411,6 +414,28 @@ function make_button(x_pct, y_pct, for_ui) {
     button.rotation.x -= Math.PI / 2;
   }
   return button;
+}
+
+let tFlip = 0;
+let flipAnimating = false;
+let flipping = null;
+
+function makeButtonsToFlip(num) {
+  const buttons = new THREE.Group();
+
+  for (let i = 0; i < num; i++) {
+    let sign;
+    const y_off = THREE.MathUtils.randFloat(-0.08, 0.08);
+    if (i % 2 === 0) {
+      sign = 1;
+    } else sign = -1;
+    const button = make_button(0, 0, false);
+    button.position.set(sign * 0.12 * i, -2 + y_off * i, -2);
+    buttons.add(button);
+  }
+  camera.add(buttons);
+  flipping = buttons;
+  tFlip = 0;
 }
 
 /* main board */
@@ -507,7 +532,7 @@ function create_grid_cells() {
   board.add(r2c8);
   main_board_cells.push(r2c1);
   main_board_cells.push(r2c2);
-  main_board_cells.push(r2c3p5to5);
+  main_board_cells.push(r2c3to3p5);
   main_board_cells.push(r2c3p5to5);
   main_board_cells.push(r2c6);
   main_board_cells.push(r2c7);
@@ -551,7 +576,7 @@ function create_grid_cells() {
   board_cell_position_numbers.push(3);
   board_cell_position_numbers.push(29);
   board_cell_position_numbers.push(45);
-  board_cell_position_numbers.push(-1);
+  board_cell_position_numbers.push(54);
   board_cell_position_numbers.push(50);
   board_cell_position_numbers.push(37);
   board_cell_position_numbers.push(16);
@@ -1136,6 +1161,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   /* patch select overlay */
   if (patch_hits.length > 0) {
     const chosen = patch_hits[0].object;
+    if (chosen.parent.visible == false || chosen.material.wireframe == true)
+      return;
     placing = true;
     let camTarget;
     let camTargetLookAt;
@@ -1431,6 +1458,22 @@ function get_cell_under_token(tk) {
   let found = false;
   for (let i = 0; i < main_board_cells.length; i++) {
     const box = new THREE.Box3().setFromObject(main_board_cells[i]);
+    console.log("i: ", i, ", cell position: ", board_cell_position_numbers[i]);
+    console.log(
+      "token_pos: ",
+      token_pos.x,
+      ", ",
+      token_pos.y,
+      "; box pos: ",
+      box.min.x,
+      ", ",
+      box.max.x,
+      ", ",
+      box.min.y,
+      ", ",
+      box.max.y,
+    );
+
     if (
       token_pos.x >= box.min.x &&
       token_pos.x <= box.max.x &&
@@ -1562,6 +1605,47 @@ function animate() {
     currentLookAt.lerpVectors(camStartLookAt, camTargetLookAt, t);
     camera.lookAt(currentLookAt);
   }
+  if (flipAnimating) {
+    const flipSpeed = 0.002;
+    console.log("children in flipping: ", flipping.children.length);
+    const player_turn = getPlayerTurn();
+    for (let i = 0; i < flipping.children.length; i++) {
+      const x_off = THREE.MathUtils.randFloat(0.01, 0.02);
+      let sign = 1;
+      if (player_turn === 2) sign = -1;
+      flipping.children[i].position.y += 0.03;
+      flipping.children[i].rotation.x += 0.2;
+      flipping.children[i].position.x += sign * x_off;
+    }
+    tFlip += flipSpeed;
+    if (tFlip >= 1) {
+      tFlip = 1;
+      flipAnimating = false;
+      destroy_mesh(flipping);
+      flipping = null;
+    }
+
+    if (spinAnimating) {
+      const radius = 2.3;
+      const steps = 30;
+      const spinSpeed = 1 / steps;
+      let deltaRot = (2 * Math.PI) / steps;
+      spinT += spinSpeed;
+      spinAngle += deltaRot;
+      camera.position.x = radius * Math.cos(spinAngle);
+      camera.position.z = radius * Math.sin(spinAngle);
+      camera.lookAt(0, 0, 0);
+
+      if (spinT >= 1) {
+        spinAnimating = false;
+        spinT = 0;
+        camera.position.x = 0;
+        camera.position.z = 2.3;
+        camera.rotation.y = 0;
+        spinAngle = 0;
+      }
+    }
+  }
   hourglass.rotation.y += 0.04;
 
   const wobbleT = performance.now() * 0.001;
@@ -1590,6 +1674,9 @@ renderer.setAnimationLoop(animate);
 /* Bonsai entry points */
 
 window.dimIneligiblePatches = function (pos) {
+  while (!patches) {
+    continue;
+  }
   function dim(p) {
     patches.children[p].traverse((obj) => {
       if (obj.isMesh) {
@@ -1610,41 +1697,61 @@ window.dimIneligiblePatches = function (pos) {
     });
   }
 
-  let patch1;
-  let patch2;
-  let patch3;
+  let ct = 0;
 
-  let k = pos + 1;
+  let k = pos;
   console.log(k);
-  let cycles = 0;
-  function find_next() {
-    if (k >= 32) k = 0;
-    while (patches.children[k].visible === false) {
-      k++;
-      if (k > 32) {
-        k = 0;
-        cycles++;
-      }
-      if (cycles > 1) break;
-    }
+  if (k === 32 && patches.children.length > 0) k = 0;
+  while (patches.children[k].visible === false) {
+    k++;
   }
-  find_next();
-  console.log("k = ", k);
-  patch1 = k++;
-  find_next();
-  patch2 = k++;
-  console.log("k = ", k);
-  find_next();
-  patch3 = k;
+  let patch1 = patches.children[k++];
+  if (k === 32 && patches.children.length > 0) k = 0;
+  console.log(k);
+  while (patches.children[k].visible === false) {
+    k++;
+  }
+  let patch2 = patches.children[k++];
+  if (k === 32 && patches.children.length > 0) k = 0;
+  console.log(k);
+  while (patches.children[k].visible === false) {
+    k++;
+  }
+  let patch3 = patches.children[k];
 
-  console.log("patch1: ", patch1, ", patch2: ", patch2, "patch3: ", patch3);
+  console.log(
+    "patch1: ",
+    patch1.userData.pos,
+    ", patch2: ",
+    patch2.userData.pos,
+    "patch3: ",
+    patch3.userData.pos,
+  );
 
   for (let i = 0; i < patches.children.length; i++) {
     const child = patches.children[i];
     const p = child.userData && child.userData.pos;
-    if (p === patch1 || p === patch2 || p === patch3) show(i);
+    if (
+      p === patch1.userData.pos ||
+      p === patch2.userData.pos ||
+      p === patch3.userData.pos
+    )
+      show(i);
     else dim(i);
   }
+};
+
+window.playButtonFlipAnimation = function (num) {
+  console.log(
+    "start cam position: ",
+    camera.position,
+    ", start cam rot: ",
+    camera.rotation.y,
+  );
+
+  console.log("three: called play flip anim w/", num);
+  makeButtonsToFlip(num);
+  flipAnimating = true;
 };
 
 window.repositionTimeTokens = function (p1, p2) {

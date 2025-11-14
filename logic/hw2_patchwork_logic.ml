@@ -666,12 +666,14 @@ module Token = struct
     let curr_pos = t.position in
     let distance = abs (opp_pos - curr_pos) in
     Button.give_buttons b t.owned_by (distance + 1);
-    let new_token = { t with position = opp_pos + 1 } in
+    let new_pos = if opp_pos + 1 >= 54 then 54 else opp_pos + 1 in
+    let new_token = { t with position = new_pos } in
     new_token
   ;;
 
   let move_token_after_patch t n =
-    let new_token = { t with position = t.position + n } in
+    let new_pos = if t.position + n >= 54 then 54 else t.position + n in
+    let new_token = { t with position = new_pos } in
     new_token
   ;;
 
@@ -992,14 +994,14 @@ module Move = struct
   ;;
 
   let score_game (state : Game_state.t) =
-    if state.tk1.position < 53 || state.tk2.position < 53
+    if state.tk1.position < 54 || state.tk2.position < 54
     then -1, -1
     else (
       let p1_buttons = state.tk1.owned_by.buttons_owned in
       let p2_buttons = state.tk2.owned_by.buttons_owned in
       let p1_empty_squares = 81 - List.length state.p1qb.filled_squares in
       let p2_empty_squares = 81 - List.length state.p2qb.filled_squares in
-      abs (p1_buttons - p1_empty_squares), abs (p2_buttons - p2_empty_squares))
+      p1_buttons - (2 * p1_empty_squares), p2_buttons - (2 * p2_empty_squares))
   ;;
 
   let check_advance_move_valid (opp_tt : Token.time_token) pos =
