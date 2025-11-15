@@ -448,6 +448,7 @@ module Game_board = struct
   type quilt_board =
     { squares : int
     ; filled_squares : (int * int) list
+    ; accumulated_income : int
     ; patches : (int * int * Patch.patch_shape) list
     }
   [@@deriving sexp, compare, equal]
@@ -472,6 +473,20 @@ module Game_board = struct
         iter tl
     in
     iter filled
+  ;;
+
+  let calc_income (b : quilt_board) old_pos new_pos =
+    let board_income = b.accumulated_income in
+    let board_button_locs = [ 6; 12; 18; 24; 30; 36; 42; 48; 54 ] in
+    let rec check bbl acc =
+      match bbl with
+      | [] -> acc
+      | hd :: tl ->
+        if old_pos < hd && new_pos >= hd
+        then check tl (acc + board_income)
+        else check tl acc
+    in
+    check board_button_locs board_income
   ;;
 
   (* let rec check_patch_squares (f : (int * int) list) qb sr sc dir acc = if acc < 1 then
@@ -614,7 +629,14 @@ module Game_board = struct
       let new_filled = fill_in_new_patch dim r c ((r, c) :: board.filled_squares) in
       let old_pip = board.patches in
       let new_pip = (r, c, patch) :: old_pip in
-      let qb_upd = { board with filled_squares = new_filled; patches = new_pip } in
+      let new_acc_income = board.accumulated_income + Patch.get_income patch in
+      let qb_upd =
+        { board with
+          filled_squares = new_filled
+        ; patches = new_pip
+        ; accumulated_income = new_acc_income
+        }
+      in
       qb_upd)
     else raise Patch_does_not_fit_there
   ;;
@@ -661,20 +683,23 @@ module Token = struct
     | NeutralToken of neutral_token
   [@@deriving sexp, compare, equal]
 
-  let move_token b (t : time_token) (opp : time_token) =
+  let move_token b (t : time_token) (opp : time_token) (board : Game_board.quilt_board) =
     let opp_pos = opp.position in
     let curr_pos = t.position in
-    log ("ai pos: " ^ string_of_int curr_pos ^ ", player pos: " ^ string_of_int opp_pos);
     let distance = abs (opp_pos - curr_pos) in
     Button.give_buttons b t.owned_by (distance + 1);
     let new_pos = if opp_pos + 1 >= 54 then 54 else opp_pos + 1 in
     let new_token = { t with position = new_pos } in
+    let income_to_add = Game_board.calc_income board curr_pos new_pos in
+    Button.give_buttons b t.owned_by income_to_add;
     new_token
   ;;
 
-  let move_token_after_patch t n =
+  let move_token_after_patch b t n board =
     let new_pos = if t.position + n >= 54 then 54 else t.position + n in
     let new_token = { t with position = new_pos } in
+    let income_to_add = Game_board.calc_income board t.position new_pos in
+    Button.give_buttons b t.owned_by income_to_add;
     new_token
   ;;
 
@@ -761,12 +786,12 @@ module Game_pieces = struct
     let neutral = { Token.pos = neut_pos } in
     let main_board : Game_board.main_board = { squares = 64; special_patch_locs = [] } in
     let quilt_board_1 : Game_board.quilt_board =
-      { squares = 9; filled_squares = []; patches = [] }
+      { squares = 9; filled_squares = []; patches = []; accumulated_income = 0 }
     in
     let quilt_board_2 : Game_board.quilt_board =
-      { squares = 9; filled_squares = []; patches = [] }
+      { squares = 9; filled_squares = []; patches = []; accumulated_income = 0 }
     in
-    let b : Button.t = { unassigned_cache = 152 } in
+    let b : Button.t = { unassigned_cache = 500 } in
     let game_pieces =
       { player1 = player_1
       ; player2 = player_2
@@ -838,7 +863,7 @@ module Move = struct
     | Advance
     | PlacePatch
 
-  let advance_on_board b p1t p2t = Token.move_token b p1t p2t
+  let advance_on_board b p1t p2t board = Token.move_token b p1t p2t board
 
   exception No_patches_left
   exception Patch_already_taken
@@ -889,6 +914,7 @@ module Move = struct
           state.Game_state.bc
           (if player = 1 then p1t else p2t)
           (if player = 1 then p2t else p1t)
+          pqb
       in
       let next_turn =
         if player = 1
@@ -943,7 +969,11 @@ module Move = struct
       let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c rot in
       Button.take_buttons state.bc player_moving p.cost;
       let new_token =
-        Token.move_token_after_patch (if player = 1 then p1t else p2t) p.move_num
+        Token.move_token_after_patch
+          state.bc
+          (if player = 1 then p1t else p2t)
+          p.move_num
+          qb
       in
       let next_turn =
         if player = 1

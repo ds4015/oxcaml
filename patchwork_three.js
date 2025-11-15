@@ -18,6 +18,7 @@ import {
 } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 
 /* setup  */
+const manager = new THREE.LoadingManager();
 const scene = new THREE.Scene();
 const scene2 = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -50,6 +51,7 @@ labelRenderer.domElement.style.left = "0";
 labelRenderer.domElement.style.pointerEvents = "none";
 labelRenderer.domElement.style.zIndex = "10";
 document.body.appendChild(labelRenderer.domElement);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -86,6 +88,7 @@ let clickables = [];
 let patch_clickables = [];
 let draggable = [];
 let ui_overlay_built = false;
+let inputLocked = false;
 
 /* logo */
 const fontLoader = new FontLoader();
@@ -106,8 +109,8 @@ fontLoader.load("img3d/Princess Sofia_Regular.json", (font) => {
 
   const logo_m = new THREE.MeshPhongMaterial({
     color: 0xffcc66,
-    specular: 0x444444,
-    shininess: 30,
+    specular: 0x111111,
+    shininess: 10,
   });
 
   const logo = new THREE.Mesh(logo_g, logo_m);
@@ -128,9 +131,9 @@ fontLoader.load("img3d/Kranky_Regular.json", (font) => {
     depth: 0.005,
     curveSegments: 24,
     bevelEnabled: true,
-    bevelThickness: 0.01,
-    bevelSize: 0.005,
-    bevelSegments: 5,
+    bevelThickness: 0.001,
+    bevelSize: 0.001,
+    bevelSegments: 1,
   });
   patch_inf_g.computeBoundingBox();
   patch_inf_g.center();
@@ -153,6 +156,7 @@ fontLoader.load("img3d/Kranky_Regular.json", (font) => {
 const button_cost_icon = make_button(0, 0, false);
 button_cost_icon.scale.set(0.5, 0.5, 0.5);
 button_cost_icon.position.set(0.15, 0.18, 0);
+button_cost_icon.rotation.x += Math.PI / 2;
 patch_info_1.add(button_cost_icon);
 
 const hourglass_sand_geo = new THREE.ConeGeometry(1, 2.5, 25, 25);
@@ -232,7 +236,7 @@ function onWindowResize() {
   camera.updateProjectionMatrix();
   camera2.aspect = width / height;
   camera2.updateProjectionMatrix();
-
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(width, height);
   labelRenderer.setSize(width, height);
 
@@ -476,6 +480,8 @@ table_mat.depthTest = false;
 
 table.add(table_edges);
 scene.add(table);
+
+let button_income_cells = [6, 12, 18, 24, 30, 36, 42, 48, 54];
 
 function create_grid_cells() {
   const board_button = new THREE.CylinderGeometry(0.03, 0.03, 0.015, 40);
@@ -1030,15 +1036,15 @@ function get_patch_values() {
     depth: 0.005,
     curveSegments: 24,
     bevelEnabled: true,
-    bevelThickness: 0.01,
-    bevelSize: 0.005,
-    bevelSegments: 5,
+    bevelThickness: 0.001,
+    bevelSize: 0.001,
+    bevelSegments: 1,
   });
 
   const patch_inf_m = new THREE.MeshPhongMaterial({
     color: 0xdfaf35,
-    specular: 0xffffff,
-    shininess: 30,
+    specular: 0x111111,
+    shininess: 10,
   });
   const patch_inf_g2 = new TextGeometry(income_text, {
     font: PAR_TEXT_FONT,
@@ -1046,9 +1052,9 @@ function get_patch_values() {
     depth: 0.005,
     curveSegments: 24,
     bevelEnabled: true,
-    bevelThickness: 0.01,
-    bevelSize: 0.005,
-    bevelSegments: 5,
+    bevelThickness: 0.001,
+    bevelSize: 0.001,
+    bevelSegments: 1,
   });
   patch_inf_g.computeBoundingBox();
   patch_inf_g.center();
@@ -1213,7 +1219,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
   /* patch place on quilt board cell */
   if (quilt_cell_hits.length > 0) {
+    if (inputLocked) return;
+    if (!placing || !manipulating) return;
     const hit = quilt_cell_hits.find((h) => h.object.userData);
+    if (!hit) return;
     const cell = hit.object;
     const row = cell.userData.row;
     const col = cell.userData.col;
@@ -1669,6 +1678,10 @@ window.dimIneligiblePatches = function (pos) {
     });
   }
 
+  window.checkAndSetButtonIncome = function (pnum, income) {
+    console.log("Player ", pnum, " gains ", income, " button income!");
+  };
+
   function show(p) {
     patches.children[p].traverse((obj) => {
       if (obj.isMesh) {
@@ -1794,6 +1807,18 @@ window.placeAIPatch = function (patch_num, row, col) {
   patch_clone.rotation.copy(patch.userData.orig_rot);
   p2_quilt_board.add(patch_clone);
   patch.visible = false;
+};
+
+window.beginAIMove = function () {
+  inputLocked = true;
+  if (placing) {
+    placing = false;
+    manipulating = null;
+  }
+};
+
+window.endAIMove = function () {
+  inputLocked = false;
 };
 
 window.moveNeutralToken = function (pos) {

@@ -22,6 +22,43 @@ let play_button_flip_animation (num : int) =
   if String.equal ty "function" then ignore (fun_call fn [| inject num |]) else ()
 ;;
 
+let determine_button_income player old_pos new_pos board_inc =
+  log "Determine button income called.";
+  let board_button_slots = [ 6; 12; 18; 24; 30; 36; 42; 48; 54 ] in
+  let rec check_bbs bbs acc =
+    match bbs with
+    | [] -> acc
+    | hd :: tl ->
+      if old_pos < hd && new_pos >= hd
+      then check_bbs tl (acc + board_inc)
+      else check_bbs tl acc
+  in
+  let total_new_income = check_bbs board_button_slots 0 in
+  log ("Total button income: " ^ string_of_int total_new_income);
+  let open Js.Unsafe in
+  let g = global in
+  let fn = get g "checkAndSetButtonIncome" in
+  let ty = Js.to_string (Js.typeof fn) in
+  if String.equal ty "function"
+  then ignore (fun_call fn [| inject player; inject total_new_income |])
+;;
+
+let ai_start_turn () =
+  let open Js.Unsafe in
+  let g = global in
+  let fn = get g "beginAIMove" in
+  let ty = Js.to_string (Js.typeof fn) in
+  if String.equal ty "function" then ignore (fun_call fn [||]) else ()
+;;
+
+let ai_end_turn () =
+  let open Js.Unsafe in
+  let g = global in
+  let fn = get g "endAIMove" in
+  let ty = Js.to_string (Js.typeof fn) in
+  if String.equal ty "function" then ignore (fun_call fn [||]) else ()
+;;
+
 let reposition_time_tokens (p1 : int) (p2 : int) =
   let open Js.Unsafe in
   let g = global in
@@ -252,6 +289,18 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg =
                               let upd_state =
                                 Move.choose_move gs PlacePatch patch_choice row col
                               in
+                              log
+                                (Printf.sprintf
+                                   "PAY: p=%d old=%d new=%d rate=%d"
+                                   gs.tk1.owned_by.player_num
+                                   gs.tk1.position
+                                   upd_state.tk1.position
+                                   upd_state.p1qb.accumulated_income);
+                              determine_button_income
+                                gs.tk1.owned_by.player_num
+                                gs.tk1.position
+                                upd_state.tk1.position
+                                upd_state.p1qb.accumulated_income;
                               reposition_time_tokens
                                 upd_state.tk1.position
                                 upd_state.tk2.position;
@@ -330,6 +379,11 @@ let advance_component ~game_state ~set_game_state ~set_status_msg =
                          game_state.tk2.position)
                      else (
                        let upd_state = Move.choose_move game_state Advance 0 0 0 in
+                       determine_button_income
+                         gs.tk1.owned_by.player_num
+                         gs.tk1.position
+                         upd_state.tk1.position
+                         upd_state.p1qb.accumulated_income;
                        reposition_time_tokens
                          upd_state.tk1.position
                          upd_state.tk2.position;
@@ -404,27 +458,41 @@ let game_component =
              Bonsai.Effect.of_sync_fun
                (fun () ->
                   delay 2000 (fun () ->
+                    ai_start_turn ();
                     let mv, p, r, c = Hw4_patchwork_ai_heuristics.determine_move gs in
                     match mv with
                     | Move.PlacePatch ->
                       place_ai_patch_on_qb p r c;
                       let upd = Move.choose_move gs Move.PlacePatch p r c in
+                      determine_button_income
+                        gs.tk2.owned_by.player_num
+                        gs.tk2.position
+                        upd.tk2.position
+                        upd.p2qb.accumulated_income;
                       reposition_time_tokens upd.tk1.position upd.tk2.position;
                       set_button_count 1 upd.tk1.owned_by.buttons_owned;
                       set_button_count 2 upd.tk2.owned_by.buttons_owned;
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
                         (set_game_state upd);
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
-                        (set_status_msg "AI Places Patch")
+                        (set_status_msg "AI Places Patch");
+                      ai_end_turn ()
                     | Move.Advance ->
+                      ai_start_turn ();
                       let upd = Move.choose_move gs Move.Advance 0 0 0 in
+                      determine_button_income
+                        gs.tk2.owned_by.player_num
+                        gs.tk2.position
+                        upd.tk2.position
+                        upd.p2qb.accumulated_income;
                       reposition_time_tokens upd.tk1.position upd.tk2.position;
                       set_button_count 1 upd.tk1.owned_by.buttons_owned;
                       set_button_count 2 upd.tk2.owned_by.buttons_owned;
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
                         (set_game_state upd);
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
-                        (set_status_msg "AI Advances")))
+                        (set_status_msg "AI Advances");
+                      ai_end_turn ()))
                ()
            else (
              let js_effect =

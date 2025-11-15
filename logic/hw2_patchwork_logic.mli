@@ -82,6 +82,7 @@ module Game_board : sig
   type quilt_board = {
     squares : int;
     filled_squares : (int * int) list;
+    accumulated_income: int;
     patches : (int * int * Patch.patch_shape) list;
   }
   [@@deriving sexp, compare, equal]
