@@ -461,7 +461,7 @@ module Game_board = struct
   exception Out_of_bounds
   exception Patch_does_not_fit_there
 
-  let print_filled_slots (board : quilt_board) =
+  let _print_filled_slots (board : quilt_board) =
     let filled = board.filled_squares in
     let rec iter f =
       match f with
@@ -1018,9 +1018,6 @@ module Move = struct
             pps
             upd_rem_list
       in
-      if player = 1
-      then Game_board.print_filled_slots upd_state.p1qb
-      else Game_board.print_filled_slots upd_state.p2qb;
       upd_state
   ;;
 

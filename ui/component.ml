@@ -40,7 +40,7 @@ let determine_button_income player old_pos new_pos board_inc =
   let fn = get g "checkAndSetButtonIncome" in
   let ty = Js.to_string (Js.typeof fn) in
   if String.equal ty "function"
-  then ignore (fun_call fn [| inject player; inject total_new_income |])
+  then ignore (fun_call fn [| inject player; inject total_new_income; inject new_pos |])
 ;;
 
 let ai_start_turn () =

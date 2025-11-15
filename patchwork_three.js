@@ -423,6 +423,12 @@ function make_button(x_pct, y_pct, for_ui) {
 let tFlip = 0;
 let flipAnimating = false;
 let flipping = null;
+let incAnimating = false;
+let fallAnimating = false;
+let inc = null;
+let inc_rain = null;
+let incT = 0;
+let fallT = 0;
 
 function makeButtonsToFlip(num) {
   const buttons = new THREE.Group();
@@ -453,6 +459,7 @@ const cube = new THREE.Mesh(geometry, mat);
 const main_board_cells = [];
 const board_cell_position_numbers = [];
 const single_patches = [];
+const main_board_income_button_markers = [];
 
 const board = new THREE.Group();
 let board2 = new THREE.Group();
@@ -779,6 +786,16 @@ function create_grid_cells() {
   const b9 = new THREE.Mesh(board_button, b);
   b9.position.set(-0.455 + 3.5 * 0.13, 0.455 - 0.13 * 7);
   b9.rotation.set(-1.57079, 0, 0);
+
+  main_board_income_button_markers.push(b2);
+  main_board_income_button_markers.push(b1);
+  main_board_income_button_markers.push(b7);
+  main_board_income_button_markers.push(b9);
+  main_board_income_button_markers.push(b5);
+  main_board_income_button_markers.push(b3);
+  main_board_income_button_markers.push(b8);
+  main_board_income_button_markers.push(b4);
+  main_board_income_button_markers.push(b6);
 
   board.add(b1);
   board.add(b2);
@@ -1637,6 +1654,38 @@ function animate() {
       }
     }
   }
+  if (incAnimating) {
+    const incSpeed = 0.01;
+    inc.position.z += 0.02;
+    console.log("inc animating");
+
+    incT += incSpeed;
+
+    if (incT >= 1) {
+      incT = 1;
+      destroy_mesh(inc);
+      inc = null;
+      incAnimating = false;
+      fallAnimating = true;
+    }
+  }
+
+  if (fallAnimating && !incAnimating) {
+    const rainSpeed = 0.15;
+    inc_rain.position.y -= 0.04;
+    for (let i = 0; i < inc_rain.children.length; i++) {
+      const b = inc_rain.children[i];
+      b.rotation.y -= 0.05;
+    }
+    fallT += rainSpeed;
+
+    if (rainSpeed >= 1) {
+      rainT = 1;
+      destroy_mesh(inc_rain);
+      inc_rain = null;
+      fallAnimating = false;
+    }
+  }
   hourglass.rotation.y += 0.04;
 
   const wobbleT = performance.now() * 0.001;
@@ -1678,8 +1727,46 @@ window.dimIneligiblePatches = function (pos) {
     });
   }
 
-  window.checkAndSetButtonIncome = function (pnum, income) {
-    console.log("Player ", pnum, " gains ", income, " button income!");
+  window.checkAndSetButtonIncome = function (pnum, income, pos) {
+    if (pnum != 1) return;
+    if (income === 0) return;
+    let backtrack = pos;
+    while (backtrack > 0 && backtrack % 6 != 0) {
+      backtrack--;
+    }
+    let button_number = -1;
+    while (backtrack > 0) {
+      button_number++;
+      backtrack /= 6;
+    }
+    const button_icon = main_board_income_button_markers[button_number - 1];
+    const income_buttons = new THREE.Group();
+    const angle = (2 * Math.PI) / income;
+    let four_marker = 0;
+    const rad = 0.5;
+    let next = 0;
+    console.log("drawing buttons! income: ", income);
+
+    for (let i = 0; i < income; i++) {
+      const button = make_button(0, 0, false);
+      button.rotation.x += Math.PI / 2;
+      const x_off = THREE.MathUtils.randFloat(-0.3, 0.3);
+      const y_off = THREE.MathUtils.randFloat(-0.15, 0.15);
+      button.position.set(x_off * i, 3.5 + y_off * i, 0.02);
+      button.userData.name = "rain_button";
+      income_buttons.add(button);
+    }
+    const big_button = make_button(0, 0, false);
+    big_button.scale.set(2.5, 2.5, 2.5);
+    big_button.position.set(0, 0, 0.2);
+    big_button.rotation.x += Math.PI / 2;
+    scene.add(big_button);
+    scene.add(income_buttons);
+    incT = 0;
+    inc = big_button;
+    inc_rain = income_buttons;
+    incAnimating = true;
+    console.log("incAnimating set to true");
   };
 
   function show(p) {
@@ -1713,16 +1800,6 @@ window.dimIneligiblePatches = function (pos) {
     k++;
   }
   let patch3 = patches.children[k];
-
-  console.log(
-    "patch1: ",
-    patch1.userData.pos,
-    ", patch2: ",
-    patch2.userData.pos,
-    "patch3: ",
-    patch3.userData.pos,
-  );
-
   for (let i = 0; i < patches.children.length; i++) {
     const child = patches.children[i];
     const p = child.userData && child.userData.pos;
