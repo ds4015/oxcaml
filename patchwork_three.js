@@ -8,14 +8,14 @@ import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
-
 import {
-  CSS3DRenderer,
-  CSS3DObject,
-} from "three/examples/jsm/renderers/CSS3DRenderer.js";
+  CSS2DRenderer,
+  CSS2DObject,
+} from "three/examples/jsm/renderers/CSS2DRenderer.js";
 
 /* setup  */
 const manager = new THREE.LoadingManager();
@@ -34,6 +34,10 @@ const camera2 = new THREE.PerspectiveCamera(
   1000,
 );
 
+let advance_button;
+let pp_button;
+let ptStatus;
+
 let bonsaiLoaded = false;
 const texLoader = new THREE.TextureLoader();
 
@@ -43,7 +47,7 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
   alpha: true,
 });
-const labelRenderer = new CSS3DRenderer();
+const labelRenderer = new CSS2DRenderer();
 labelRenderer.setSize(window.innerWidth, window.innerHeight);
 labelRenderer.domElement.style.position = "absolute";
 labelRenderer.domElement.style.top = "0";
@@ -53,10 +57,13 @@ labelRenderer.domElement.style.zIndex = "10";
 document.body.appendChild(labelRenderer.domElement);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
 document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.update();
+
 let camStart = new THREE.Vector3(0, 0, 0);
 let camStartLookAt = new THREE.Vector3(0, 0, 0);
 let camTarget = new THREE.Vector3(0, 0, 0);
@@ -64,9 +71,13 @@ let camTargetLookAt = new THREE.Vector3(0, 0, 0);
 let currentLookAt = new THREE.Vector3(0, 0, 0);
 let openAnimating = true;
 let qbAnimating = false;
+let mbAnimating = false;
 let tPulse = 0;
 let tShift = 0;
+let tMbShift = 0;
 let tSlide = 0;
+let view_mode = "all_three";
+
 camera.position.set(3.5, 0, 7.5);
 moveCam(new THREE.Vector3(0, 0, 2.5), new THREE.Vector3(0, 0, 0));
 camera2.position.z = 10.3;
@@ -74,10 +85,15 @@ camera2.position.y = 4;
 const cam_offset = -2.3;
 scene.add(camera);
 scene2.add(camera2);
+
+/* UI DOM elements */
 const p1_buttons = document.getElementById("p1-buttons");
 const p2_buttons = document.getElementById("p2-buttons");
 const player_name = document.getElementById("player-box-1");
 const ai_name = document.getElementById("player-box-2");
+let player_turn_div = null;
+let p1_ui_button_label;
+let p2_ui_button_label;
 
 let spinT = 0;
 let spinAngle = 0;
@@ -149,7 +165,7 @@ fontLoader.load("img3d/Kranky_Regular.json", (font) => {
   // patch_inf.position.set(-3.3, 0.1, 0);
   patch_info_1.add(patch_inf);
   const values_text = get_patch_values();
-  console.log(values_text);
+
   if (values_text) patch_info_1.add(values_text);
 });
 
@@ -228,32 +244,24 @@ window.addEventListener("resize", onWindowResize);
 
 const TARGET_ASPECT = 16 / 9;
 function onWindowResize() {
-  const vw = window.innerWidth;
-  const width = vw;
-  const height = Math.round(width / TARGET_ASPECT);
-
-  camera.aspect = width / height;
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  labelRenderer.setSize(window.innerWidth, window.innerHeight);
+  // Update camera aspect ratio
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  camera2.aspect = width / height;
-  camera2.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(width, height);
-  labelRenderer.setSize(width, height);
+  pinToCornerLocal(camera, b1, "top-left");
+  pinToCornerLocal(camera, b2, "top-right", 1.5, 0.55);
+  if (p1_ui_button_label)
+    pinToCornerLocal(camera, p1_ui_button_label, "top-left", 1.5, 0.45);
+  if (p2_ui_button_label)
+    pinToCornerLocal(camera, p2_ui_button_label, "top-right", 1.5, 0.3);
 
-  const vh = window.innerHeight;
-  const topOffset = Math.round((vh - height) / 2);
-
-  renderer.domElement.style.width = width + "px";
-  renderer.domElement.style.height = height + "px";
-  renderer.domElement.style.top = "0px";
-  renderer.domElement.style.left = "0px";
-
-  labelRenderer.domElement.style.width = width + "px";
-  labelRenderer.domElement.style.height = height + "px";
-  labelRenderer.domElement.style.top = topOffset + "px";
-  labelRenderer.domElement.style.left = "0px";
-
-  vw_to_local();
+  if (ptStatus)
+    pinToCornerLocal(camera, ptStatus, "bottom-center", 1.5, 0, -0.01);
+  if (advance_button)
+    pinToCornerLocal(camera, advance_button, "bottom-center", 1.5, -0.5, -0.01);
+  if (pp_button)
+    pinToCornerLocal(camera, pp_button, "bottom-center", 1.5, 0.5, -0.01);
 }
 
 /* skybox */
@@ -333,37 +341,14 @@ let current_close_button = close_button_1;
 const b1 = make_button(0.05, 0.15, true);
 b1.rotation.y += 0.18;
 b1.rotation.z += 0.09;
-const b2 = make_button(0.9, 0.15, true);
+pinToCornerLocal(camera, b1, "top-left");
+
+const b2 = make_button(0.05, 0.15, true);
 b2.rotation.y -= 0.18;
 b2.rotation.z -= 0.09;
-let rot_ct = 1;
-const button_cache = new THREE.Group();
-make_and_place_button_cache();
-function make_and_place_button_cache() {
-  for (let i = 0; i < 15; i++) {
-    const stack = make_button_stack(10);
-    button_cache.add(stack);
-  }
+pinToCornerLocal(camera, b2, "top-right", 1.5, 0.55);
 
-  for (let i = 0; i < button_cache.children.length; i++) {
-    let alpha = Math.PI / 2 - 0.418879 * i;
-    let x = Math.cos(alpha) * 1.1;
-    let z = Math.sin(alpha) * 1.1;
-    button_cache.children[i].position.set(x, -1.2, z);
-  }
-}
-const stack1 = make_button_stack(10);
-stack1.position.set(0, -1.2, 0.7);
-//scene.add(button_cache);
-function make_button_stack(num) {
-  const stack = new THREE.Group();
-  for (let i = 0; i < num; i++) {
-    const jitter = THREE.MathUtils.randFloat(-0.02, 0.02);
-    const button = make_button(jitter, i * 0.022, false);
-    stack.add(button);
-  }
-  return stack;
-}
+let rot_ct = 1;
 
 function make_button(x_pct, y_pct, for_ui) {
   const b_geom = new THREE.TorusGeometry(0.07, 0.01, 8, 24);
@@ -408,11 +393,7 @@ function make_button(x_pct, y_pct, for_ui) {
   button.add(button_interior);
 
   if (for_ui) {
-    ui_elements.push(button);
-    ui_element_percentages.push(x_pct);
-    ui_element_percentages.push(y_pct);
-    camera.add(button);
-    vw_to_local();
+    button.position.set(0, 0, -4);
   } else {
     button.position.set(x_pct, y_pct, 0);
     button.rotation.x -= Math.PI / 2;
@@ -880,6 +861,12 @@ function create_grid_cells() {
   board.add(thread12);
   board.add(final_thread);
   board.add(tube_loop);
+
+  for (const cell of main_board_cells) {
+    if (cell.geometry && !cell.geometry.boundingBox) {
+      cell.geometry.computeBoundingBox();
+    }
+  }
 }
 board.add(cube);
 board2 = board.clone(true);
@@ -1046,7 +1033,7 @@ function get_patch_values() {
   const income_val = manipulating.userData.income;
   const values_text = `${cost_val}\n\n${time_val}`;
   const income_text = `${income_val}`;
-  console.log(cost_val, ", ", time_val, ", ", income_val);
+
   const patch_inf_g = new TextGeometry(values_text, {
     font: PAR_TEXT_FONT,
     size: 0.05,
@@ -1164,6 +1151,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   raycaster.setFromCamera(mouse, camera);
   const hits = raycaster.intersectObjects(clickables, true);
   const patch_hits = raycaster.intersectObjects(patch_clickables, true);
+  const advance_hits = raycaster.intersectObject(advance_button, true);
   const drag_hits = raycaster.intersectObjects(draggable, true);
   const close_button_hits = raycaster.intersectObject(
     current_close_button,
@@ -1181,8 +1169,14 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     object_outlined = null;
   }
 
+  if (advance_hits.length > 0) {
+    toggle_main_board_view();
+  }
+
   /* patch select overlay */
   if (patch_hits.length > 0) {
+    if (inputLocked) return;
+    toggleActionButtons();
     const chosen = patch_hits[0].object;
     if (chosen.parent.visible == false || chosen.material.wireframe == true)
       return;
@@ -1190,7 +1184,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     let camTarget;
     let camTargetLookAt;
     const player_turn = getPlayerTurn();
-    console.log("player turn: ", player_turn);
+
     if (player_turn === 1) {
       patch_info = patch_info_1;
       camTarget = new THREE.Vector3(-2.2, 0, 1);
@@ -1268,6 +1262,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
   /* drag time token */
   if (drag_hits.length > 0) {
+    if (inputLocked) return;
     const hit = drag_hits[0];
 
     dragging = true;
@@ -1332,6 +1327,54 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   }
 });
 
+function pinToCornerLocal(
+  camera,
+  obj,
+  corner,
+  dist = 1.5,
+  marginX = 0.15,
+  marginY = 0.15,
+) {
+  const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * dist;
+  const halfW = halfH * camera.aspect;
+
+  let x = 0,
+    y = 0;
+
+  switch (corner) {
+    case "top-left":
+      x = -halfW + marginX;
+      y = halfH - marginY;
+      break;
+    case "top-center":
+      x = marginX;
+      y = 1 - marginY;
+      break;
+    case "top-right":
+      x = halfW - marginX;
+      y = halfH - marginY;
+      break;
+    case "bottom-left":
+      x = -halfW + marginX;
+      y = -halfH + marginY;
+      break;
+    case "bottom-center":
+      x = marginX;
+      y = -1 + marginY;
+      break;
+    case "bottom-right":
+      x = halfW - marginX;
+      y = -halfH + marginY;
+      break;
+    default:
+      x = 0;
+      y = 0;
+  }
+
+  obj.position.set(x, y, -dist);
+  camera.add(obj);
+}
+
 /* close quilt board/patch place view */
 function close_window(destroy) {
   const toDestroy = [];
@@ -1359,6 +1402,7 @@ function close_window(destroy) {
   if (destroy) destroy_mesh(patch_clone);
   scene.remove(current_close_button);
   toggle_orbit_controls("on");
+  toggleActionButtons();
 }
 
 /* toggle off when dragging game piece */
@@ -1440,6 +1484,19 @@ function outline_object(obj) {
 
 /* delete mesh, free resources, remove from scene */
 function destroy_mesh(mesh) {
+  if (mesh.isCSS2DObject) {
+    mesh.traverse((o) => {
+      if (o.isCSS2DObject) {
+        const element = o.element;
+        if (element) {
+          element.replaceChildren();
+          if (element.parentNode) element.parentNode.removeChild(element);
+          o.element = null;
+        }
+      }
+    });
+    mesh.removeFromParent();
+  }
   if (mesh.isGroup) {
     mesh.traverse((obj) => {
       if (obj.isMesh) {
@@ -1469,6 +1526,24 @@ function destroy_mesh(mesh) {
   }
 }
 
+function load_button_models() {
+  const gltfLoader = new GLTFLoader();
+  gltfLoader.load("img3d/advance.glb", (gltf) => {
+    const model = gltf.scene;
+    model.scale.setScalar(0.08);
+    model.rotation.y -= Math.PI / 2;
+    pinToCornerLocal(camera, model, "bottom-center", 1.5, -0.5, -0.01);
+    advance_button = model;
+  });
+  gltfLoader.load("img3d/pp.glb", (gltf) => {
+    const model = gltf.scene;
+    model.scale.setScalar(0.08);
+    model.rotation.y -= Math.PI / 2;
+    pinToCornerLocal(camera, model, "bottom-center", 1.5, 0.5, -0.01);
+    pp_button = model;
+  });
+}
+
 function removeCirclePatch(pos) {
   for (let i = 0; i < patches.children.length; i++) {
     const group = patches.children[i];
@@ -1478,25 +1553,35 @@ function removeCirclePatch(pos) {
     }
   }
 }
+const _tmpVec3 = new THREE.Vector3();
 
 function get_cell_under_token(tk) {
-  const token_pos = tk.position;
-  let found = false;
-  for (let i = 0; i < main_board_cells.length; i++) {
-    const box = new THREE.Box3().setFromObject(main_board_cells[i]);
+  scene.updateMatrixWorld(true);
+  tk.updateMatrixWorld(true);
+  tk.getWorldPosition(_tmpVec3);
+  const tkWorld = _tmpVec3.clone();
 
+  let foundIndex = -1;
+  for (let i = 0; i < main_board_cells.length; i++) {
+    const cell = main_board_cells[i];
+    const pLocal = _tmpVec3.copy(tkWorld);
+    cell.worldToLocal(pLocal);
+
+    const bb = cell.geometry.boundingBox;
     if (
-      token_pos.x >= box.min.x &&
-      token_pos.x <= box.max.x &&
-      token_pos.y >= box.min.y &&
-      token_pos.y <= box.max.y
+      pLocal.x >= bb.min.x &&
+      pLocal.x <= bb.max.x &&
+      pLocal.y >= bb.min.y &&
+      pLocal.y <= bb.max.y
     ) {
-      window.bonsaiCheckTokenPosition(board_cell_position_numbers[i]);
-      found = true;
+      foundIndex = i;
       break;
     }
   }
-  if (!found) window.bonsaiCheckTokenPosition(-1);
+  if (foundIndex != -1 && view_mode === "mb") toggle_main_board_view();
+  window.bonsaiCheckTokenPosition(
+    foundIndex === -1 ? -1 : board_cell_position_numbers[foundIndex],
+  );
 }
 
 function moveCam(pos, lookAt) {
@@ -1504,6 +1589,40 @@ function moveCam(pos, lookAt) {
   camStartLookAt.copy(currentLookAt);
   camTarget.copy(pos);
   camTargetLookAt.copy(lookAt);
+}
+
+function toggle_main_board_view() {
+  const origin = new THREE.Vector3(0, 0, 0);
+
+  if (view_mode === "all_three") {
+    board.rotation.x -= Math.PI / 2;
+    const m = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+    intersectionPlane.applyMatrix4(m);
+    camStart = camera.position;
+    camTarget = new THREE.Vector3(-0.75, 0.4, 0.5);
+    camStartLookAt = origin;
+    camTargetLookAt = origin;
+    resetAnimTimes();
+    mbAnimating = true;
+    view_mode = "mb";
+    moveCam(camTarget, camTargetLookAt);
+  } else if (view_mode === "mb") {
+    board.rotation.x += Math.PI / 2;
+    const m = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+    intersectionPlane.applyMatrix4(m);
+    camStart = camera.position;
+    camTarget = new THREE.Vector3(0, 0, 2.3);
+    camStartLookAt = origin;
+    camTargetLookAt = origin;
+    resetAnimTimes();
+    mbAnimating = true;
+    view_mode = "all_three";
+    moveCam(camTarget, camTargetLookAt);
+  }
+
+  camera.updateMatrixWorld(true);
+  controls.target.set(0, 0, 0);
+  controls.update();
 }
 
 function build_ui_overlay() {
@@ -1545,6 +1664,13 @@ function build_ui_overlay() {
   ui_overlay_built = true;
 }
 
+function resetAnimTimes() {
+  tFlip = 0;
+  tShift = 0;
+  tSlide = 0;
+  tMbShift = 0;
+}
+
 function get_mb_cell_from_pos(pos) {
   let index = 0;
   for (let i = 0; i < board_cell_position_numbers.length; i++)
@@ -1576,8 +1702,46 @@ function highlight_patch(p) {
   scene.add(highlight);
 }
 
+function waitForBonsaiId(id, cb) {
+  const hit = document.getElementById(id);
+  if (hit) {
+    cb(hit);
+    return;
+  }
+
+  const observer = new MutationObserver(() => {
+    const element = document.getElementById(id);
+    if (element) {
+      observer.disconnect();
+
+      cb(element);
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+function toggleActionButtons() {
+  advance_button.visible = !advance_button.visible;
+  pp_button.visible = !pp_button.visible;
+}
+
 function getPlayerTurn() {
   return window.queryPlayerTurn();
+}
+
+function setPlayerTurnDiv(div) {
+  if (!player_turn_div) {
+    const pturn_status = new CSS2DObject(div);
+    ptStatus = pturn_status;
+    pinToCornerLocal(camera, pturn_status, "bottom-center", 1.5, 0, -0.01);
+    player_turn_div = div;
+  }
+  if (player_turn_div.element !== div) {
+    const old = player_turn_div.element;
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    player_turn_div.element = div;
+  }
 }
 
 function position_token(pnum, pos) {
@@ -1592,7 +1756,7 @@ let current_scene = scene;
 
 /* render loop */
 function animate() {
-  if (openAnimating || qbAnimating) {
+  if (openAnimating || qbAnimating || mbAnimating) {
     if (openAnimating) {
       const openSpeed = 0.009;
       tShift += openSpeed;
@@ -1609,8 +1773,17 @@ function animate() {
         qbAnimating = false;
       }
     }
+    if (mbAnimating) {
+      const mbSpeed = 0.03;
+      tMbShift += mbSpeed;
+      if (tMbShift >= 1) {
+        tMbShift = 1;
+        mbAnimating = false;
+      }
+    }
     let t;
     if (qbAnimating || tSlide === 1) t = tSlide;
+    else if (mbAnimating || tMbShift === 1) t = tMbShift;
     else t = tShift;
     camera.position.lerpVectors(camStart, camTarget, t);
     currentLookAt.lerpVectors(camStartLookAt, camTargetLookAt, t);
@@ -1657,7 +1830,6 @@ function animate() {
   if (incAnimating) {
     const incSpeed = 0.01;
     inc.position.z += 0.02;
-    console.log("inc animating");
 
     incT += incSpeed;
 
@@ -1675,6 +1847,7 @@ function animate() {
     inc_rain.position.y -= 0.04;
     for (let i = 0; i < inc_rain.children.length; i++) {
       const b = inc_rain.children[i];
+
       b.rotation.y -= 0.05;
     }
     fallT += rainSpeed;
@@ -1745,7 +1918,6 @@ window.dimIneligiblePatches = function (pos) {
     let four_marker = 0;
     const rad = 0.5;
     let next = 0;
-    console.log("drawing buttons! income: ", income);
 
     for (let i = 0; i < income; i++) {
       const button = make_button(0, 0, false);
@@ -1762,11 +1934,35 @@ window.dimIneligiblePatches = function (pos) {
     big_button.rotation.x += Math.PI / 2;
     scene.add(big_button);
     scene.add(income_buttons);
+
+    fontLoader.load("img3d/Kranky_Regular.json", (font) => {
+      const txt = `+${income} button income`;
+      const button_inc_g = new TextGeometry(txt, {
+        font: font,
+        size: 0.015,
+        depth: 0.005,
+        curveSegments: 24,
+        bevelEnabled: false,
+        bevelThickness: 0.001,
+        bevelSize: 0.001,
+        bevelSegments: 1,
+      });
+      button_inc_g.computeBoundingBox();
+      button_inc_g.center();
+      const button_inc_m = new THREE.MeshPhongMaterial({
+        color: 0xffffff,
+        specular: 0xffffff,
+        shininess: 10,
+      });
+      const button_inc_mesh = new THREE.Mesh(button_inc_g, button_inc_m);
+      button_inc_mesh.position.z = 0.04;
+      big_button.add(button_inc_mesh);
+    });
+
     incT = 0;
     inc = big_button;
     inc_rain = income_buttons;
     incAnimating = true;
-    console.log("incAnimating set to true");
   };
 
   function show(p) {
@@ -1782,20 +1978,20 @@ window.dimIneligiblePatches = function (pos) {
   let ct = 0;
 
   let k = pos;
-  console.log(k);
+
   if (k > 32 && patches.children.length > 0) k = 0;
   while (patches.children[k].visible === false) {
     k++;
   }
   let patch1 = patches.children[k++];
   if (k > 32 && patches.children.length > 0) k = 0;
-  console.log(k);
+
   while (patches.children[k].visible === false) {
     k++;
   }
   let patch2 = patches.children[k++];
   if (k > 32 && patches.children.length > 0) k = 0;
-  console.log(k);
+
   while (patches.children[k].visible === false) {
     k++;
   }
@@ -1855,7 +2051,7 @@ window.moveNeutralTokenInitial = function (pos) {
 window.placeAIPatch = function (patch_num, row, col) {
   let patch;
   let cell;
-  console.log("placing patch ", patch_num, " at ", row, ", ", col);
+
   for (let i = 0; i < patches.children.length; i++) {
     if (i === patch_num - 1) {
       patch = patches.children[i];
@@ -1887,14 +2083,18 @@ window.placeAIPatch = function (patch_num, row, col) {
 };
 
 window.beginAIMove = function () {
+  toggleActionButtons();
+
   inputLocked = true;
-  if (placing) {
+  if (placing || dragging) {
     placing = false;
+    dragging = false;
     manipulating = null;
   }
 };
 
 window.endAIMove = function () {
+  toggleActionButtons();
   inputLocked = false;
 };
 
@@ -1915,7 +2115,17 @@ window.buildInitialPatches = function (pl, pr, pc, pt, pi, n) {
   neut_init_pos = n;
 };
 
-window.window.onBonsaiReady = function () {
+window.onBonsaiReady = function () {
+  waitForBonsaiId("player-turn", setPlayerTurnDiv);
+  const p1buttons = document.getElementById("p1-buttons");
+  const p2buttons = document.getElementById("p2-buttons");
+  const p1bLabel = new CSS2DObject(p1buttons);
+  p1_ui_button_label = p1bLabel;
+  pinToCornerLocal(camera, p1bLabel, "top-left", 1.5, 0.4);
+  const p2bLabel = new CSS2DObject(p2buttons);
+  p2_ui_button_label = p2bLabel;
+  pinToCornerLocal(camera, p2bLabel, "top-right", 1.5, 0.3);
+  load_button_models();
   //if (ui_overlay_built) return;
   //build_ui_overlay();
   build;

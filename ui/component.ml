@@ -188,6 +188,15 @@ let set_button_count (p : int) (count : int) =
     span##.textContent := Js.Opt.return (Js.string ("x " ^ string_of_int count))
 ;;
 
+let set_player_turn (p : int) =
+  let id = "player-turn" in
+  let divText = if p = 1 then "Your Turn" else "AI's Turn" in
+  log ("setting player turn text to" ^ divText);
+  match Dom_html.getElementById_opt id with
+  | None -> ()
+  | Some div -> div##.textContent := Js.Opt.return (Js.string divText)
+;;
+
 let pieces =
   let p1_span = Dom_html.getElementById_exn "player-box-1" in
   let player_name = Js.Opt.case p1_span##.textContent (fun () -> "") Js.to_string in
@@ -281,21 +290,10 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg =
                             let patch_choice = int_of_float pc in
                             let _advance_spaces = int_of_float time in
                             let gs : Hw2_patchwork_logic.Game_state.t = state in
-                            let player = gs.turn in
-                            log
-                              ("BonsaiPlacePatch: player "
-                               ^ string_of_int player.player_num);
                             try
                               let upd_state =
                                 Move.choose_move gs PlacePatch patch_choice row col
                               in
-                              log
-                                (Printf.sprintf
-                                   "PAY: p=%d old=%d new=%d rate=%d"
-                                   gs.tk1.owned_by.player_num
-                                   gs.tk1.position
-                                   upd_state.tk1.position
-                                   upd_state.p1qb.accumulated_income);
                               determine_button_income
                                 gs.tk1.owned_by.player_num
                                 gs.tk1.position
@@ -307,9 +305,10 @@ let place_patch_component ~game_state ~set_game_state ~set_status_msg =
                               if gs.turn.player_num = 1
                               then set_button_count 1 upd_state.tk1.owned_by.buttons_owned
                               else set_button_count 2 upd_state.tk2.owned_by.buttons_owned;
+                              set_player_turn upd_state.turn.player_num;
                               let effect1 = set_game_state upd_state in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
-                              let status_advance_str = "You Placed Patch" in
+                              let status_advance_str = "You Place Patch" in
                               let effect2 = set_status_msg status_advance_str in
                               Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
                               install upd_state;
@@ -390,6 +389,7 @@ let advance_component ~game_state ~set_game_state ~set_status_msg =
                        if gs.turn.player_num = 1
                        then set_button_count 1 upd_state.tk1.owned_by.buttons_owned
                        else set_button_count 2 upd_state.tk2.owned_by.buttons_owned;
+                       set_player_turn upd_state.turn.player_num;
                        let spots_advanced =
                          if gs.turn.player_num = 1
                          then upd_state.tk1.position - gs.tk1.position
@@ -438,6 +438,7 @@ let game_component =
                    Js_of_ocaml.Js.number_of_float
                      (float_of_int game_state.turn.player_num)));
               initialize_patches game_state.patches game_state.neut.pos;
+              set_player_turn game_state.turn.player_num;
               move_neut_token game_state.neut.pos true)
            ())
       ()
@@ -457,8 +458,8 @@ let game_component =
            then
              Bonsai.Effect.of_sync_fun
                (fun () ->
-                  delay 2000 (fun () ->
-                    ai_start_turn ();
+                  ai_start_turn ();
+                  delay 3000 (fun () ->
                     let mv, p, r, c = Hw4_patchwork_ai_heuristics.determine_move gs in
                     match mv with
                     | Move.PlacePatch ->
@@ -472,13 +473,13 @@ let game_component =
                       reposition_time_tokens upd.tk1.position upd.tk2.position;
                       set_button_count 1 upd.tk1.owned_by.buttons_owned;
                       set_button_count 2 upd.tk2.owned_by.buttons_owned;
+                      set_player_turn upd.turn.player_num;
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
                         (set_game_state upd);
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
                         (set_status_msg "AI Places Patch");
                       ai_end_turn ()
                     | Move.Advance ->
-                      ai_start_turn ();
                       let upd = Move.choose_move gs Move.Advance 0 0 0 in
                       determine_button_income
                         gs.tk2.owned_by.player_num
@@ -488,6 +489,7 @@ let game_component =
                       reposition_time_tokens upd.tk1.position upd.tk2.position;
                       set_button_count 1 upd.tk1.owned_by.buttons_owned;
                       set_button_count 2 upd.tk2.owned_by.buttons_owned;
+                      set_player_turn upd.turn.player_num;
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
                         (set_game_state upd);
                       Bonsai_web.Effect.Expert.handle_non_dom_event_exn
@@ -506,6 +508,7 @@ let game_component =
                     reposition_time_tokens gs.tk1.position gs.tk2.position;
                     set_button_count 1 gs.tk1.owned_by.buttons_owned;
                     set_button_count 2 gs.tk2.owned_by.buttons_owned;
+                    set_player_turn gs.turn.player_num;
                     if seen_first then move_neut_token gs.neut.pos false;
                     let dim_slot =
                       if seen_first
@@ -523,18 +526,7 @@ let game_component =
   in
   let%arr status = status
   and winner = winner in
-  Vdom.Node.div
-    ~attrs:[ Vdom.Attr.id "patchwork_game" ]
-    [ (* [ Vdom.Node.div ~attrs:[ Vdom.Attr.class_ "patch-info"; Vdom.Attr.id "patch-info"
-         ] [ Vdom.Node.div ~attrs:[ Vdom.Attr.class_ "patch-attrs" ] [ Vdom.Node.div
-         ~attrs:[ Vdom.Attr.class_ "patch-label" ] [ Vdom.Node.text "Cost: " ] ;
-         Vdom.Node.div ~attrs:[ Vdom.Attr.id "patch-cost"; Vdom.Attr.class_ "patch-value"
-         ] [ Vdom.Node.text "5" ] ; Vdom.Node.div ~attrs:[ Vdom.Attr.class_ "patch-label"
-         ] [ Vdom.Node.text "Time: " ] ; Vdom.Node.div ~attrs:[ Vdom.Attr.id "patch-time";
-         Vdom.Attr.class_ "patch-value" ] [ Vdom.Node.text "2" ] ] ] *)
-      status
-    ; winner
-    ]
+  Vdom.Node.div ~attrs:[ Vdom.Attr.id "patchwork_game" ] [ status; winner ]
 ;;
 
 let () = Start.start ~bind_to_element_with_id:"patchwork_game" game_component
