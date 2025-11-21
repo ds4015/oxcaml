@@ -2,8 +2,8 @@
  (name hw2_patchwork_logic)
  (wrapped false)
  (modules hw2_patchwork_logic)
- (libraries core)
- (preprocess (pps ppx_jane)))
+ (libraries core js_of_ocaml yojson)
+ (preprocess (pps ppx_jane ppx_deriving_yojson js_of_ocaml-ppx)))
 
  (library
   (name hw4_patchwork_ai_heuristics)

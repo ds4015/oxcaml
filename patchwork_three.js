@@ -11,16 +11,23 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { Text } from "troika-three-text";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
   CSS2DRenderer,
   CSS2DObject,
 } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import {
+  CSS3DRenderer,
+  CSS3DObject,
+} from "three/examples/jsm/renderers/CSS3DRenderer.js";
 
 /* setup  */
 const manager = new THREE.LoadingManager();
 const scene = new THREE.Scene();
 const scene2 = new THREE.Scene();
+const rules = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -33,6 +40,26 @@ const camera2 = new THREE.PerspectiveCamera(
   0.1,
   1000,
 );
+const camera3 = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000,
+);
+let current_scene;
+let current_camera;
+
+const params = new URLSearchParams(window.location.search);
+const matchID = params.get("match");
+const player = params.get("player");
+
+if (matchID && player) {
+  current_scene = scene;
+  current_camera = camera;
+} else {
+  current_scene = scene2;
+  current_camera = camera2;
+}
 
 let advance_button;
 let pp_button;
@@ -48,19 +75,35 @@ const renderer = new THREE.WebGLRenderer({
   alpha: true,
 });
 const labelRenderer = new CSS2DRenderer();
+const rulesRenderer = new CSS3DRenderer();
+rulesRenderer.setSize(window.innerWidth, window.innerHeight);
+rulesRenderer.domElement.style.position = "absolute";
+rulesRenderer.domElement.style.top = "0";
+rulesRenderer.domElement.style.left = "0";
+rulesRenderer.domElement.style.inset = "0";
+rulesRenderer.domElement.style.pointerEvents = "none";
+rulesRenderer.domElement.style.zIndex = "20";
+
 labelRenderer.setSize(window.innerWidth, window.innerHeight);
 labelRenderer.domElement.style.position = "absolute";
 labelRenderer.domElement.style.top = "0";
 labelRenderer.domElement.style.left = "0";
+labelRenderer.domElement.style.inset = "0";
 labelRenderer.domElement.style.pointerEvents = "none";
 labelRenderer.domElement.style.zIndex = "10";
 document.body.appendChild(labelRenderer.domElement);
+document.body.appendChild(rulesRenderer.domElement);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+const audioLoader = new THREE.AudioLoader();
+const audioListener = new THREE.AudioListener();
+camera2.add(audioListener);
+const audio = new THREE.Audio(audioListener);
+
 document.body.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
+const controls = new OrbitControls(current_camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.update();
 
@@ -78,13 +121,12 @@ let tMbShift = 0;
 let tSlide = 0;
 let view_mode = "all_three";
 
-camera.position.set(3.5, 0, 7.5);
-moveCam(new THREE.Vector3(0, 0, 2.5), new THREE.Vector3(0, 0, 0));
-camera2.position.z = 10.3;
-camera2.position.y = 4;
+camera3.position.set(0, 0, 2);
+camera2.position.set(0, 0, 2.5);
 const cam_offset = -2.3;
 scene.add(camera);
 scene2.add(camera2);
+rules.add(camera3);
 
 /* UI DOM elements */
 const p1_buttons = document.getElementById("p1-buttons");
@@ -105,6 +147,7 @@ let patch_clickables = [];
 let draggable = [];
 let ui_overlay_built = false;
 let inputLocked = false;
+let introLogo;
 
 /* logo */
 const fontLoader = new FontLoader();
@@ -130,44 +173,228 @@ fontLoader.load("img3d/Princess Sofia_Regular.json", (font) => {
   });
 
   const logo = new THREE.Mesh(logo_g, logo_m);
-  logo.position.set(0, 0.8, 0);
-  //scene.add(logo);
+  logo.position.set(0, 0.8, 0.4);
+  scene2.add(logo);
+  introLogo = logo;
 });
+
+/* intro buttons */
+const single_button = new THREE.Group();
+const multi_button = new THREE.Group();
+const rules_button = new THREE.Group();
+const host_button = new THREE.Group();
+const join_button = new THREE.Group();
+const mode_button_g = new RoundedBoxGeometry(0.5, 0.2, 0.02, 2, 0.1);
+const mode_button_m_s = new THREE.MeshToonMaterial({
+  color: "blue",
+  transparent: true,
+  opacity: 0.4,
+});
+const mode_button_m_m = new THREE.MeshToonMaterial({
+  color: "blue",
+  transparent: true,
+  opacity: 0.4,
+});
+
+const single_mode_button = new THREE.Mesh(mode_button_g, mode_button_m_s);
+single_mode_button.userData.name = "button_bg";
+const multi_mode_button = new THREE.Mesh(mode_button_g, mode_button_m_m);
+multi_mode_button.userData.name = "button_bg";
+
+single_mode_button.position.set(-0.3, -0.6, 1);
+multi_mode_button.position.set(0.3, -0.6, 1);
+single_button.add(single_mode_button);
+multi_button.add(multi_mode_button);
+scene2.add(single_button);
+scene2.add(multi_button);
+
+const rules_g = new RoundedBoxGeometry(0.2, 0.1, 0.02, 2, 0.1);
+const rules_m = new THREE.MeshBasicMaterial({
+  transparent: true,
+  opacity: 0,
+});
+const r_button = new THREE.Mesh(rules_g, rules_m);
+rules_button.add(r_button);
+pinToCornerLocal(camera2, rules_button, "top-right", 1, 0.15, 0.15);
+
+fontLoader.load("img3d/Kranky_Regular.json", (font) => {
+  const intro_button_g = new TextGeometry("Single Player", {
+    font: font,
+    size: 0.05,
+    height: 0.01,
+    curveSegments: 12,
+    bevelEnabled: false,
+  });
+
+  intro_button_g.computeBoundingBox();
+  intro_button_g.center();
+
+  const intro_button_m = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    specular: 0x111111,
+    shininess: 10,
+  });
+
+  const single_player_text = new THREE.Mesh(intro_button_g, intro_button_m);
+  single_player_text.position.set(-0.3, -0.6, 1.02);
+  single_button.add(single_player_text);
+});
+
+let rulesButton;
+fontLoader.load("img3d/Kranky_Regular.json", (font) => {
+  const rules_button_g = new TextGeometry("Rules", {
+    font: font,
+    size: 0.05,
+    height: 0.01,
+    curveSegments: 8,
+    bevelEnabled: false,
+  });
+
+  rules_button_g.computeBoundingBox();
+  rules_button_g.center();
+
+  const rules_button_m = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    specular: 0x111111,
+    shininess: 10,
+  });
+
+  const rules_button_text = new THREE.Mesh(rules_button_g, rules_button_m);
+  rules_button.add(rules_button_text);
+});
+
+fontLoader.load("img3d/Kranky_Regular.json", (font) => {
+  const intro_button_g = new TextGeometry("Multiplayer", {
+    font: font,
+    size: 0.05,
+    height: 0.01,
+    curveSegments: 12,
+    bevelEnabled: false,
+  });
+
+  intro_button_g.computeBoundingBox();
+  intro_button_g.center();
+
+  const intro_button_m = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    specular: 0x111111,
+    shininess: 10,
+  });
+
+  const multi_player_text = new THREE.Mesh(intro_button_g, intro_button_m);
+  multi_player_text.position.set(0.3, -0.6, 1.02);
+  multi_button.add(multi_player_text);
+});
+
+fontLoader.load("img3d/Kranky_Regular.json", (font) => {
+  const host_button_g = new TextGeometry("Host", {
+    font: font,
+    size: 0.05,
+    height: 0.01,
+    curveSegments: 12,
+    bevelEnabled: false,
+  });
+
+  host_button_g.computeBoundingBox();
+  host_button_g.center();
+
+  const host_button_m = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    specular: 0x111111,
+    shininess: 10,
+  });
+
+  const host_text = new THREE.Mesh(host_button_g, host_button_m);
+  host_text.position.set(-0.3, -0.6, 1.02);
+  host_button.add(host_text);
+});
+
+fontLoader.load("img3d/Kranky_Regular.json", (font) => {
+  const join_button_g = new TextGeometry("Join", {
+    font: font,
+    size: 0.05,
+    height: 0.01,
+    curveSegments: 12,
+    bevelEnabled: false,
+  });
+
+  join_button_g.computeBoundingBox();
+  join_button_g.center();
+
+  const join_button_m = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    specular: 0x111111,
+    shininess: 10,
+  });
+
+  const join_text = new THREE.Mesh(join_button_g, join_button_m);
+  join_text.position.set(0.3, -0.6, 0);
+  join_button.add(join_text);
+});
+
+const rules_text = new Text();
+rules_text.text = `Goal:  Fill your quilt board as much as possible with patches.
+
+Moves:
+        Advance:  Move your time token one spot in front of the opponent's.
+
+        Place Patch:   Place 1 of 3 active patches on your quilt board.
+
+Buttons:
+
+        For every spot you advance on the main board, you gain 1 button.
+
+        Patches have a time value which will also advance you that many spots on the main board when placed.
+
+
+Button Income:
+
+        Placing a patch with income on your quilt board increments your total income for the quilt board.
+
+        Each time you pass a button icon on the main board, you gain the total sum of your quilt board's button income.
+
+End Game:
+
+        Once both players' tokens reach the end spot on the main game board, the final scores are calculated.
+
+        The score is determined by number of buttons the player has minus 2 * the number of empty cells on their quilt board.`;
+rules_text.fontSize = 0.1;
+rules_text.whiteSpace = "pre";
+rules_text.lineHeight = 1.5;
+rules_text.maxWidth = 5;
+rules_text.cycleColor = true;
+rules_text.tilt = true;
+rules_text.curveRadius = 10;
+rules_text.overflowWrap = "break-word";
+rules_text.anchorX = "left";
+rules_text.anchorY = "top";
+rules_text.font = "img3d/Kranky-Regular.ttf";
+rules_text.position.set(-2.5, 2, -1);
+rules_text.rotation.y += Math.PI / 14;
+rules.add(rules_text);
+
+rules_text.sync();
 
 /* patch info overlay */
 let PAR_TEXT_FONT = null;
 let patch_info_1 = new THREE.Group();
 let patch_info_2 = null;
 let patch_info = patch_info_1;
-fontLoader.load("img3d/Kranky_Regular.json", (font) => {
-  PAR_TEXT_FONT = font;
-  const patch_inf_g = new TextGeometry("Cost: \n\nTime: \n\nIncome: ", {
-    font: font,
-    size: 0.05,
-    depth: 0.005,
-    curveSegments: 24,
-    bevelEnabled: true,
-    bevelThickness: 0.001,
-    bevelSize: 0.001,
-    bevelSegments: 1,
-  });
-  patch_inf_g.computeBoundingBox();
-  patch_inf_g.center();
-  const patch_inf_m = new THREE.MeshPhongMaterial({
-    color: 0xffffff,
-    specular: 0xffffff,
-    shininess: 10,
-  });
-  const textLight1 = new THREE.PointLight(0xffffff, 0.8, 2);
-  textLight1.position.set(-3, 0.2, 1.5);
-  scene.add(textLight1);
-  const patch_inf = new THREE.Mesh(patch_inf_g, patch_inf_m);
-  // patch_inf.position.set(-3.3, 0.1, 0);
-  patch_info_1.add(patch_inf);
-  const values_text = get_patch_values();
+const pi_text = new Text();
+pi_text.text = "Cost: \n\nTime: \n\nIncome: ";
+pi_text.fontSize = 0.1;
+pi_text.font = "img3d/Kranky-Regular.ttf";
+pi_text.color = 0xffffff;
+pi_text.anchorX = "left";
+pi_text.anchorY = "center";
+pi_text.depthOffset = 0.001;
+pi_text.position.x -= 0.3;
+pi_text.position.y += 0.2;
+pi_text.sync();
 
-  if (values_text) patch_info_1.add(values_text);
-});
+patch_info_1.add(pi_text);
+console.log("pi1 pos: ", patch_info_1.position);
+console.log("pitext pos: ", pi_text.position);
 
 const button_cost_icon = make_button(0, 0, false);
 button_cost_icon.scale.set(0.5, 0.5, 0.5);
@@ -230,7 +457,7 @@ hourglass.position.x = 0.15;
 hourglass.position.y = -0.037;
 patch_info_1.add(hourglass);
 
-patch_info_1.position.set(-3.1, 0.16, 0.1);
+patch_info_1.position.set(-3.1, 0.16, 0.02);
 scene.add(patch_info);
 patch_info.visible = false;
 const patch_info_wobble = {
@@ -246,27 +473,44 @@ const TARGET_ASPECT = 16 / 9;
 function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   labelRenderer.setSize(window.innerWidth, window.innerHeight);
-  // Update camera aspect ratio
+  rulesRenderer.setSize(window.innerWidth, window.innerHeight);
+
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  pinToCornerLocal(camera, b1, "top-left");
-  pinToCornerLocal(camera, b2, "top-right", 1.5, 0.55);
-  if (p1_ui_button_label)
-    pinToCornerLocal(camera, p1_ui_button_label, "top-left", 1.5, 0.45);
-  if (p2_ui_button_label)
-    pinToCornerLocal(camera, p2_ui_button_label, "top-right", 1.5, 0.3);
+  camera3.aspect = window.innerWidth / window.innerHeight;
+  camera3.updateProjectionMatrix();
+  camera2.aspect = window.innerWidth / window.innerHeight;
+  camera2.updateProjectionMatrix();
 
-  if (ptStatus)
-    pinToCornerLocal(camera, ptStatus, "bottom-center", 1.5, 0, -0.01);
-  if (advance_button)
-    pinToCornerLocal(camera, advance_button, "bottom-center", 1.5, -0.5, -0.01);
-  if (pp_button)
-    pinToCornerLocal(camera, pp_button, "bottom-center", 1.5, 0.5, -0.01);
+  pinToCornerLocal(camera2, rules_button, "top-right", 1, 0.15, 0.15);
+  if (current_scene === scene) {
+    pinToCornerLocal(camera, b1, "top-left");
+    pinToCornerLocal(camera, b2, "top-right", 1.5, 0.55);
+    if (p1_ui_button_label)
+      pinToCornerLocal(camera, p1_ui_button_label, "top-left", 1.5, 0.45);
+    if (p2_ui_button_label)
+      pinToCornerLocal(camera, p2_ui_button_label, "top-right", 1.5, 0.3);
+
+    if (ptStatus)
+      pinToCornerLocal(camera, ptStatus, "bottom-center", 1.5, 0, -0.01);
+    if (advance_button)
+      pinToCornerLocal(
+        camera,
+        advance_button,
+        "bottom-center",
+        1.5,
+        -0.5,
+        -0.01,
+      );
+    if (pp_button)
+      pinToCornerLocal(camera, pp_button, "bottom-center", 1.5, 0.5, -0.01);
+  }
 }
 
 /* skybox */
 let skydome;
 let skydome2;
+let skydome3;
 const colorTex = texLoader.load("img3d/-Color.png", (tex) => {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.magFilter = THREE.LinearFilter;
@@ -286,8 +530,10 @@ objLoader.load("img3d/uvsphere_3.obj", (obj) => {
   obj.scale.set(300, 300, 300);
   skydome = obj;
   skydome2 = obj.clone(true);
+  skydome3 = obj.clone(true);
   scene.add(obj);
   scene2.add(skydome2);
+  rules.add(skydome3);
 });
 
 /* neut token model */
@@ -870,7 +1116,6 @@ function create_grid_cells() {
 }
 board.add(cube);
 board2 = board.clone(true);
-board2.rotation.x = -1.57059;
 board2.scale.multiplyScalar(1.3);
 scene2.add(board2);
 
@@ -890,8 +1135,10 @@ const p2_tt = new THREE.Mesh(time_token_geometry_2, p2_tt_mat);
 p1_tt.position.set(-0.455, 0.455 - 0.13 * 5, 0.025);
 p1_tt.rotation.z = Math.PI / 4;
 p1_tt.rotation.x = Math.PI / 3.5;
+p1_tt.userData.name = "p1_tt";
 p2_tt.position.set(0, 0, 0);
 p2_tt.rotation.set(-1.57079, 0, 0);
+p2_tt.userData.name = "p2_tt";
 board.add(p1_tt);
 board.add(p2_tt);
 draggable.push(p1_tt);
@@ -916,8 +1163,7 @@ let rotation_count = 0;
 const patches = new THREE.Group();
 
 let patch_clone = null;
-let patches2 = patches.clone(true);
-scene2.add(patches2);
+let patches2;
 
 function create_patches(
   patch_dimensions,
@@ -926,6 +1172,10 @@ function create_patches(
   patch_times,
   patch_incomes,
 ) {
+  if (patches.children.length > 0) {
+    console.log(patches.children.length, " patches already exist. destroying.");
+    destroy_mesh(patches);
+  }
   const patch_cell_geo = new THREE.BoxGeometry(0.06, 0.06, 0.012);
 
   for (let i = 0; i < patch_dimensions.length; i++) {
@@ -1005,8 +1255,9 @@ function create_patches(
         patches.add(patch);
       }
     }
-    current_scene.add(patches);
+    scene.add(patches);
   }
+
   position_patches();
   function position_patches() {
     const gapAngle = 0.062;
@@ -1025,62 +1276,44 @@ function create_patches(
       angleCursor += angularWidth + gapAngle;
     }
   }
+  patches2 = patches.clone(true);
+  patches2.traverse((obj) => {
+    if (obj.isMesh)
+      obj.material = Array.isArray(obj.material)
+        ? obj.material.map((m) => m.clone())
+        : obj.material.clone();
+  });
+  scene2.add(patches2);
 }
 function get_patch_values() {
   if (!placing) return;
   const cost_val = manipulating.userData.cost;
   const time_val = manipulating.userData.time;
   const income_val = manipulating.userData.income;
-  const values_text = `${cost_val}\n\n${time_val}`;
-  const income_text = `${income_val}`;
 
-  const patch_inf_g = new TextGeometry(values_text, {
-    font: PAR_TEXT_FONT,
-    size: 0.05,
-    depth: 0.005,
-    curveSegments: 24,
-    bevelEnabled: true,
-    bevelThickness: 0.001,
-    bevelSize: 0.001,
-    bevelSegments: 1,
-  });
+  const piv_text = new Text();
+  piv_text.text = `${cost_val}\n\n${time_val}\n\n${income_val}`;
 
-  const patch_inf_m = new THREE.MeshPhongMaterial({
-    color: 0xdfaf35,
-    specular: 0x111111,
-    shininess: 10,
-  });
-  const patch_inf_g2 = new TextGeometry(income_text, {
-    font: PAR_TEXT_FONT,
-    size: 0.05,
-    depth: 0.005,
-    curveSegments: 24,
-    bevelEnabled: true,
-    bevelThickness: 0.001,
-    bevelSize: 0.001,
-    bevelSegments: 1,
-  });
-  patch_inf_g.computeBoundingBox();
-  patch_inf_g.center();
-  const income_value_text = new THREE.Mesh(patch_inf_g2, patch_inf_m);
-  const patch_values_text = new THREE.Mesh(patch_inf_g, patch_inf_m);
-  income_value_text.userData.role = "value";
-  patch_values_text.userData.role = "value";
-  patch_values_text.position.set(0.3, 0.07, 0.1);
-  income_value_text.position.set(0.275, -0.21, 0.1);
-  //  patch_values_text.scale.set(0.15, 0.15, 0.15);
+  piv_text.fontSize = 0.1;
+  piv_text.font = "img3d/Kranky-Regular.ttf";
+  piv_text.color = 0xffffff;
+  piv_text.anchorX = "right";
+  piv_text.anchorY = "center";
+  piv_text.depthOffset = 0.001;
+  piv_text.position.x += 0.3;
+  piv_text.position.y += 0.2;
+  piv_text.sync();
+  piv_text.userData.isTroika = "true";
   const player_turn = getPlayerTurn();
   if (player_turn === 1) {
-    patch_info_1.add(patch_values_text);
-    patch_info_1.add(income_value_text);
+    patch_info_1.add(piv_text);
   } else {
     if (!patch_info_2) {
       patch_info_2 = patch_info_1.clone(true);
       patch_info_2.position.set(1.2, 0.25, 0.02);
       scene.add(patch_info_2);
     }
-    patch_info_2.add(patch_values_text);
-    patch_info_2.add(income_value_text);
+    patch_info_2.add(piv_text);
   }
 }
 
@@ -1140,6 +1373,25 @@ let current_highlight = null;
 /* raycasting + listeners */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+const back_arrow_div = document.getElementById("back-arrow");
+const name_div = document.getElementById("player-name-input");
+const host_b = document.getElementById("host-button");
+const join_b = document.getElementById("join-button");
+const match_id = document.getElementById("match-id");
+
+back_arrow_div.addEventListener("click", clickBack);
+
+function clickBack() {
+  console.log("clickback called");
+  back_arrow_div.style.display = "none";
+  if (current_scene === rules) {
+    current_scene = scene2;
+    current_camera = camera2;
+  }
+  name_div.style.display = "none";
+  single_button.visible = true;
+  multi_button.visible = true;
+}
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (event.button != 0) return;
@@ -1148,7 +1400,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-  raycaster.setFromCamera(mouse, camera);
+  raycaster.setFromCamera(mouse, current_camera);
   const hits = raycaster.intersectObjects(clickables, true);
   const patch_hits = raycaster.intersectObjects(patch_clickables, true);
   const advance_hits = raycaster.intersectObject(advance_button, true);
@@ -1161,6 +1413,95 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     current_quilt_board.children,
     true,
   );
+  const single_player_button_hits = raycaster.intersectObject(
+    single_button,
+    true,
+  );
+  const multi_player_button_hits = raycaster.intersectObject(
+    multi_button,
+    true,
+  );
+
+  const rules_button_hits = raycaster.intersectObject(rules_button, true);
+
+  if (rules_button_hits.length > 0) {
+    current_scene = rules;
+    current_camera = camera3;
+  }
+  if (single_player_button_hits.length > 0) {
+    const hit = single_player_button_hits[0].object;
+    hit.traverse((child) => {
+      if (child.userData.name === "button_bg") {
+        const m = child.material;
+        m.color?.set(0xff5c00);
+        m.transparent = true;
+        m.opacity = 0.8;
+        m.needsUpdate = true;
+      }
+    });
+    window.setMultiplayerMode(false);
+    back_arrow_div.style.display = "none";
+    current_scene = scene;
+    current_camera = camera;
+    controls.object = current_camera;
+    controls.update();
+    toggle_main_board_view();
+  }
+
+  if (multi_player_button_hits.length > 0) {
+    const hit = multi_player_button_hits[0].object;
+    hit.traverse((child) => {
+      if (child.userData.name === "button_bg") {
+        const m = child.material;
+        m.color?.set(0xff5c00);
+        m.transparent = true;
+        m.opacity = 0.8;
+        m.needsUpdate = true;
+      }
+    });
+
+    back_arrow_div.style.display = "block";
+
+    const name_input = new CSS2DObject(name_div);
+    pinToCornerLocal(camera, name_input, "bottom-center", 1.5, -1, 0.2);
+    single_button.visible = false;
+    multi_button.visible = false;
+
+    name_div.style.display = "grid";
+  }
+
+  host_b.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (host_b.style.display == "none") return;
+    clickHostJoin(match_id.value, "1");
+  });
+  join_b.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (join_b.style.display == "none") return;
+    clickHostJoin(match_id.value, "2");
+  });
+
+  function clickHostJoin(matchId, player) {
+    console.log("clicked on host/join button");
+    console.log(matchId);
+    if (matchId === "") return;
+    if (player === "2") {
+      console.log("before: ", patches.children.length);
+      for (let i = 0; i < patches.children.length; i++)
+        destroy_mesh(patches.children[i]);
+      patches.clear();
+      console.log("after: ", patches.children.length);
+    }
+
+    console.log("calling setMultiplayerMode");
+    window.setMultiplayerMode(true, matchId, player);
+
+    current_scene = scene;
+    current_camera = camera;
+    controls.object = current_camera;
+    controls.update();
+    toggle_main_board_view();
+  }
 
   if (object_outlined) {
     scene.remove(object_outlined);
@@ -1264,6 +1605,9 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   if (drag_hits.length > 0) {
     if (inputLocked) return;
     const hit = drag_hits[0];
+    if (hit.object.userData.name === "p1_tt" && getPlayerTurn() !== 1) return;
+    else if (hit.object.userData.name === "p2_tt" && getPlayerTurn() !== 2)
+      return;
 
     dragging = true;
     manipulating = hit.object;
@@ -1379,13 +1723,15 @@ function pinToCornerLocal(
 function close_window(destroy) {
   const toDestroy = [];
   patch_info_1.traverse((obj) => {
-    if (obj.isMesh && obj.userData.role === "value") {
+    if (obj.userData.isTroika === "true") {
+      console.log("found text");
       toDestroy.push(obj);
     }
   });
   if (patch_info_2) {
     patch_info_2.traverse((obj) => {
-      if (obj.isMesh && obj.userData.role === "value") {
+      if (obj.isText) {
+        console.log("found text");
         toDestroy.push(obj);
       }
     });
@@ -1417,7 +1763,11 @@ function toggle_orbit_controls(on_off) {
     controls.enableZoom = true;
   }
 }
-
+function animCameraAtStart() {
+  console.log("animating camera");
+  camera.position.set(3.5, 0, 7.5);
+  moveCam(new THREE.Vector3(0, 0, 2.5), new THREE.Vector3(0, 0, 0));
+}
 /* ui element overlay positioning helper */
 function vw_to_local() {
   let j = 0;
@@ -1484,6 +1834,14 @@ function outline_object(obj) {
 
 /* delete mesh, free resources, remove from scene */
 function destroy_mesh(mesh) {
+  if (mesh instanceof Text) {
+    console.log("it's text");
+    mesh.geometry?.dispose?.();
+    if (Array.isArray(mesh.material))
+      mesh.material.forEach((m) => m?.dispose?.());
+    else mesh.material?.dispose?.();
+    mesh.removeFromParent();
+  }
   if (mesh.isCSS2DObject) {
     mesh.traverse((o) => {
       if (o.isCSS2DObject) {
@@ -1498,6 +1856,7 @@ function destroy_mesh(mesh) {
     mesh.removeFromParent();
   }
   if (mesh.isGroup) {
+    console.log("it's a group to destroy");
     mesh.traverse((obj) => {
       if (obj.isMesh) {
         if (obj.geometry) obj.geometry.dispose();
@@ -1584,6 +1943,29 @@ function get_cell_under_token(tk) {
   );
 }
 
+function startAudio() {
+  const ctx = audioListener.context;
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+
+  if (audio.buffer) {
+    if (!audio.isPlayer) audio.play();
+  } else {
+    audioLoader.load("sounds/intro.mp3", (buffer) => {
+      audio.setBuffer(buffer);
+      audio.setLoop(true);
+      audio.setVolume(0.8);
+      audio.play();
+    });
+  }
+  renderer.domElement.removeEventListener("pointerdown", startAudio);
+  window.removeEventListener("keydown", startAudio);
+}
+/*
+renderer.domElement.addEventListener("pointerdown", startAudio, { once: true });
+window.addEventListener("keydown", startAudio, { once: true });
+*/
 function moveCam(pos, lookAt) {
   camStart.copy(camera.position);
   camStartLookAt.copy(currentLookAt);
@@ -1752,10 +2134,10 @@ function position_token(pnum, pos) {
   token.position.z = 0.025;
 }
 
-let current_scene = scene;
-
 /* render loop */
 function animate() {
+  if (current_scene === rules) back_arrow_div.style.display = "block";
+  else back_arrow_div.style.display = "none";
   if (openAnimating || qbAnimating || mbAnimating) {
     if (openAnimating) {
       const openSpeed = 0.009;
@@ -1794,8 +2176,8 @@ function animate() {
     const player_turn = getPlayerTurn();
     for (let i = 0; i < flipping.children.length; i++) {
       const x_off = THREE.MathUtils.randFloat(0.01, 0.02);
-      let sign = -1;
-      if (player_turn === 2) sign = 1;
+      let sign = 1;
+      if (player_turn === 2) sign = -1;
       flipping.children[i].position.y += 0.03;
       flipping.children[i].rotation.x += 0.2;
       flipping.children[i].position.x += sign * x_off;
@@ -1873,23 +2255,83 @@ function animate() {
   b2.scale.set(pulse, pulse, pulse);
   if (skydome) skydome.rotation.y += 0.001;
   if (skydome2) skydome2.rotation.y += 0.001;
-  patches2.rotation.y += 0.02;
+  if (skydome3) skydome3.rotation.y += 0.001;
+  if (patches2) {
+    patches2.rotation.y += 0.03;
+    patches2.rotation.x += 0.03;
+    patches2.rotation.z += 0.03;
+  }
   patches.rotation.z += 0.002;
 
-  patches2.rotation.x += 0.02;
-  board2.rotation.z += 0.005;
+  board2.rotation.z += 0.01;
   hourglass_sand.rotation.y += 0.01;
-  renderer.render(current_scene, camera);
-  labelRenderer.render(current_scene, camera);
+  renderer.render(current_scene, current_camera);
+  rulesRenderer.render(rules, camera3);
+  labelRenderer.render(current_scene, current_camera);
 }
 renderer.setAnimationLoop(animate);
 
 /* Bonsai entry points */
 
-window.dimIneligiblePatches = function (pos) {
+window.checkAndSetButtonIncome = function (pnum, income, pos) {
+  if (pnum != 1) return;
+  if (income === 0) return;
+  let backtrack = pos;
+  while (backtrack > 0 && backtrack % 6 != 0) {
+    backtrack--;
+  }
+  let button_number = -1;
+  while (backtrack > 0) {
+    button_number++;
+    backtrack /= 6;
+  }
+  const button_icon = main_board_income_button_markers[button_number - 1];
+  const income_buttons = new THREE.Group();
+  scene.add(income_buttons);
+  const angle = (2 * Math.PI) / income;
+  let four_marker = 0;
+  const rad = 0.5;
+  let next = 0;
+
+  for (let i = 0; i < income; i++) {
+    const button = make_button(0, 0, false);
+    button.rotation.x += Math.PI / 2;
+    const x_off = THREE.MathUtils.randFloat(-0.3, 0.3);
+    const y_off = THREE.MathUtils.randFloat(-0.15, 0.15);
+    button.position.set(x_off * i, 3.5 + y_off * i, 0.5);
+    button.userData.name = "rain_button";
+    income_buttons.add(button);
+  }
+  const income_bb = new THREE.Group();
+  const big_button = make_button(0, 0, false);
+  big_button.scale.set(2.5, 2.5, 2.5);
+  big_button.position.set(0, 0, 0.2);
+  big_button.rotation.x += Math.PI / 2;
+  scene.add(income_bb);
+
+  const bi_txt = new Text();
+  bi_txt.text = `+ ${income} button income`;
+  bi_txt.fontSize = 0.1;
+  bi_txt.curveRadius = 10;
+  bi_txt.anchorX = "center";
+  bi_txt.anchorY = "center";
+  bi_txt.font = "img3d/Kranky-Regular.ttf";
+  bi_txt.position.set(0, 0, 0.25);
+
+  income_bb.add(big_button);
+  income_bb.add(bi_txt);
+  income_bb.position.set(0, 0, 0.2);
+  incT = 0;
+  inc = income_bb;
+  inc_rain = income_buttons;
+  incAnimating = true;
+};
+
+window.dimIneligiblePatches = function (p1, p2, p3) {
   while (!patches) {
     continue;
   }
+  console.log("patches: ", patches.children.length);
   function dim(p) {
     patches.children[p].traverse((obj) => {
       if (obj.isMesh) {
@@ -1899,71 +2341,6 @@ window.dimIneligiblePatches = function (pos) {
       }
     });
   }
-
-  window.checkAndSetButtonIncome = function (pnum, income, pos) {
-    if (pnum != 1) return;
-    if (income === 0) return;
-    let backtrack = pos;
-    while (backtrack > 0 && backtrack % 6 != 0) {
-      backtrack--;
-    }
-    let button_number = -1;
-    while (backtrack > 0) {
-      button_number++;
-      backtrack /= 6;
-    }
-    const button_icon = main_board_income_button_markers[button_number - 1];
-    const income_buttons = new THREE.Group();
-    const angle = (2 * Math.PI) / income;
-    let four_marker = 0;
-    const rad = 0.5;
-    let next = 0;
-
-    for (let i = 0; i < income; i++) {
-      const button = make_button(0, 0, false);
-      button.rotation.x += Math.PI / 2;
-      const x_off = THREE.MathUtils.randFloat(-0.3, 0.3);
-      const y_off = THREE.MathUtils.randFloat(-0.15, 0.15);
-      button.position.set(x_off * i, 3.5 + y_off * i, 0.02);
-      button.userData.name = "rain_button";
-      income_buttons.add(button);
-    }
-    const big_button = make_button(0, 0, false);
-    big_button.scale.set(2.5, 2.5, 2.5);
-    big_button.position.set(0, 0, 0.2);
-    big_button.rotation.x += Math.PI / 2;
-    scene.add(big_button);
-    scene.add(income_buttons);
-
-    fontLoader.load("img3d/Kranky_Regular.json", (font) => {
-      const txt = `+${income} button income`;
-      const button_inc_g = new TextGeometry(txt, {
-        font: font,
-        size: 0.015,
-        depth: 0.005,
-        curveSegments: 24,
-        bevelEnabled: false,
-        bevelThickness: 0.001,
-        bevelSize: 0.001,
-        bevelSegments: 1,
-      });
-      button_inc_g.computeBoundingBox();
-      button_inc_g.center();
-      const button_inc_m = new THREE.MeshPhongMaterial({
-        color: 0xffffff,
-        specular: 0xffffff,
-        shininess: 10,
-      });
-      const button_inc_mesh = new THREE.Mesh(button_inc_g, button_inc_m);
-      button_inc_mesh.position.z = 0.04;
-      big_button.add(button_inc_mesh);
-    });
-
-    incT = 0;
-    inc = big_button;
-    inc_rain = income_buttons;
-    incAnimating = true;
-  };
 
   function show(p) {
     patches.children[p].traverse((obj) => {
@@ -1975,37 +2352,15 @@ window.dimIneligiblePatches = function (pos) {
     });
   }
 
-  let ct = 0;
-
-  let k = pos;
-
-  if (k > 32 && patches.children.length > 0) k = 0;
-  while (patches.children[k].visible === false) {
-    k++;
-  }
-  let patch1 = patches.children[k++];
-  if (k > 32 && patches.children.length > 0) k = 0;
-
-  while (patches.children[k].visible === false) {
-    k++;
-  }
-  let patch2 = patches.children[k++];
-  if (k > 32 && patches.children.length > 0) k = 0;
-
-  while (patches.children[k].visible === false) {
-    k++;
-  }
-  let patch3 = patches.children[k];
   for (let i = 0; i < patches.children.length; i++) {
-    const child = patches.children[i];
-    const p = child.userData && child.userData.pos;
+    const patch = patches.children[i];
     if (
-      p === patch1.userData.pos ||
-      p === patch2.userData.pos ||
-      p === patch3.userData.pos
+      patch.userData.pos !== p1 &&
+      patch.userData.pos !== p2 &&
+      patch.userData.pos !== p3
     )
-      show(i);
-    else dim(i);
+      dim(i);
+    else show(i);
   }
 };
 
@@ -2111,8 +2466,11 @@ window.moveNeutralToken = function (pos) {
 };
 
 window.buildInitialPatches = function (pl, pr, pc, pt, pi, n) {
+  console.log(pl);
+  console.log("three.js: building initial patches");
   create_patches(pl, pr, pc, pt, pi);
   neut_init_pos = n;
+  console.log(patches.children.length);
 };
 
 window.onBonsaiReady = function () {
@@ -2126,7 +2484,6 @@ window.onBonsaiReady = function () {
   p2_ui_button_label = p2bLabel;
   pinToCornerLocal(camera, p2bLabel, "top-right", 1.5, 0.3);
   load_button_models();
-  //if (ui_overlay_built) return;
-  //build_ui_overlay();
+
   build;
 };

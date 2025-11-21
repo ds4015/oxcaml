@@ -12,7 +12,7 @@ module Player = struct
     ; mutable buttons_owned : int
     ; mutable score : int
     }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 end
 
 (* Patches *)
@@ -53,7 +53,7 @@ module Patch = struct
     | Vine
     | WidePlus
     | Empty
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   type t =
     { shape : patch_shape
@@ -63,7 +63,7 @@ module Patch = struct
     ; income : int
     ; mutable rotated : int
     }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   let get_patch_dim p =
     match p with
@@ -443,7 +443,7 @@ module Game_board = struct
     { squares : int
     ; special_patch_locs : int list
     }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   type quilt_board =
     { squares : int
@@ -451,12 +451,12 @@ module Game_board = struct
     ; accumulated_income : int
     ; patches : (int * int * Patch.patch_shape) list
     }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   type t =
     | MainBoard of main_board
     | QuiltBoard of quilt_board
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   exception Out_of_bounds
   exception Patch_does_not_fit_there
@@ -645,7 +645,7 @@ end
 (* Buttons *)
 
 module Button = struct
-  type t = { mutable unassigned_cache : int } [@@deriving sexp, compare, equal]
+  type t = { mutable unassigned_cache : int } [@@deriving sexp, compare, equal, yojson]
 
   exception Insufficient_cache
   exception Insufficient_funds
@@ -674,14 +674,14 @@ module Token = struct
     ; owned_by : Player.t
     ; color : string
     }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
-  type neutral_token = { pos : int } [@@deriving sexp, compare, equal]
+  type neutral_token = { pos : int } [@@deriving sexp, compare, equal, yojson]
 
   type t =
     | TimeToken of time_token
     | NeutralToken of neutral_token
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   let move_token b (t : time_token) (opp : time_token) (board : Game_board.quilt_board) =
     let opp_pos = opp.position in
@@ -722,7 +722,7 @@ module Game_pieces = struct
     ; quilt_board2 : Game_board.quilt_board
     ; buttons : Button.t
     }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   let setup_game p1_name p2_name color1 color2 =
     let remaining =
@@ -825,7 +825,12 @@ module Game_state = struct
     ; mutable patches : Patch.t list
     ; patches_remaining : int list
     }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
+
+  type mode =
+    | SinglePlayer
+    | Multiplayer
+  [@@deriving sexp, compare, equal, yojson]
 
   let update st qb1 qb2 bcache turn tt1 tt2 neut p rem =
     { st with

@@ -14,18 +14,61 @@
             href="https://fonts.googleapis.com/css2?family=Luxurious+Roman&display=swap"
             rel="stylesheet"
         />
+
         <script type="importmap">
             {
                 "imports": {
-                    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-                    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+                    "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+                    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
+                    "troika-three-text": "https://cdn.jsdelivr.net/npm/troika-three-text@0.49.1/+esm"
                 }
             }
         </script>
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.css"
+        />
     </head>
     <body>
         <div class="container ui-font">
             <canvas id="three-js-canvas"></canvas>
+            <div id="back-arrow" class="back-arrow">
+                <img src="img3d/back.svg" class="arrow" />
+            </div>
+
+            <div id="player-name-input" class="intro-scene ui-font">
+                <div>Name:</div>
+                <div>
+                    <input
+                        type="text"
+                        id="player-name"
+                        class="ui-font"
+                        size="10"
+                        maxlength="20"
+                    />
+                </div>
+                <div>Match ID:</div>
+                <div>
+                    <input
+                        type="text"
+                        class="ui-font"
+                        id="match-id"
+                        size="10"
+                        maxlength="20"
+                    />
+                </div>
+                <div>
+                    <button id="host-button" class="host-join-button ui-text">
+                        Host
+                    </button>
+                </div>
+                <div>
+                    <button id="join-button" class="host-join-button ui-text">
+                        Join
+                    </button>
+                </div>
+            </div>
             <div id="player-box-1" class="player-box-1">
                 <div id="p1-buttons" class="p1-buttons"></div>
             </div>
@@ -37,6 +80,7 @@
             <div id="patch-cost"></div>
         </div>
         <div id="player-turn" class="player-turn"></div>
+        <script type="module" src="multiplayer.js"></script>
         <script type="module" src="patchwork_three.js"></script>
         <script src="generated_js/component.bc.js"></script>
     </body>

@@ -9,7 +9,7 @@ module Player : sig
     mutable buttons_owned : int;
     mutable score : int;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 end
 
 (* Patch *)
@@ -50,7 +50,7 @@ module Patch : sig
     | Vine
     | WidePlus
     | Empty
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   type t = {
     shape : patch_shape;
@@ -60,7 +60,7 @@ module Patch : sig
     income : int;
     mutable rotated : int;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
 
 
@@ -77,7 +77,7 @@ end
 
 module Game_board : sig
   type main_board = { squares : int; special_patch_locs : int list }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   type quilt_board = {
     squares : int;
@@ -85,10 +85,10 @@ module Game_board : sig
     accumulated_income: int;
     patches : (int * int * Patch.patch_shape) list;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   type t = MainBoard of main_board | QuiltBoard of quilt_board
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   exception Out_of_bounds
   exception Patch_does_not_fit_there
@@ -110,12 +110,12 @@ end
 
 module Token : sig
   type time_token = { position : int; owned_by : Player.t; color : string }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   type neutral_token = { pos : int } [@@deriving sexp, compare, equal]
 
   type t = TimeToken of time_token | NeutralToken of neutral_token
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 end
 
 (* Game Pieces *)
@@ -134,7 +134,7 @@ module Game_pieces : sig
     quilt_board2 : Game_board.quilt_board;
     buttons : Button.t;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
 
   val setup_game : string -> string -> string -> string -> t
 end
@@ -154,7 +154,12 @@ module Game_state : sig
     mutable patches : Patch.t list;
     patches_remaining : int list;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, yojson]
+
+  type mode =
+    | SinglePlayer
+    | Multiplayer
+  [@@deriving sexp, compare, equal, yojson]
 
   val initialize_state : Game_pieces.t -> t
 end

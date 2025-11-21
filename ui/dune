@@ -2,4 +2,4 @@
  (name component)
  (modes js)
  (preprocess (pps js_of_ocaml-ppx bonsai.ppx_bonsai ppx_jane))
- (libraries patchwork_logic_library core bonsai.web virtual_dom js_of_ocaml))
+ (libraries patchwork_logic_library hw4_patchwork_ai_heuristics core bonsai.web virtual_dom js_of_ocaml))
