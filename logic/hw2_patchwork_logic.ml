@@ -8,7 +8,7 @@ let log s = Firebug.console##log (Js.string s)
 module Player = struct
   type t =
     { player_num : int
-    ; player_name : string
+    ; mutable player_name : string
     ; mutable buttons_owned : int
     ; mutable score : int
     }
@@ -449,7 +449,7 @@ module Game_board = struct
     { squares : int
     ; filled_squares : (int * int) list
     ; accumulated_income : int
-    ; patches : (int * int * Patch.patch_shape) list
+    ; patches : (int * int * int * int) list
     }
   [@@deriving sexp, compare, equal, yojson]
 
@@ -576,7 +576,7 @@ module Game_board = struct
      board.filled_squares board row col d q in if upd_row = -1 && upd_col = -1 then false
      else check_if_patch_fits tl board upd_row upd_col *)
 
-  let place_patch_on_quilt_board board patch r c rot =
+  let place_patch_on_quilt_board board patch patch_pos r c rot =
     let orig_dim = Patch.get_patch_dim patch in
     let rec rotate dim n =
       if n > 0
@@ -628,7 +628,7 @@ module Game_board = struct
       in
       let new_filled = fill_in_new_patch dim r c ((r, c) :: board.filled_squares) in
       let old_pip = board.patches in
-      let new_pip = (r, c, patch) :: old_pip in
+      let new_pip = (r, c, patch_pos, rot) :: old_pip in
       let new_acc_income = board.accumulated_income + Patch.get_income patch in
       let qb_upd =
         { board with
@@ -906,6 +906,13 @@ module Move = struct
     let player_moving = state.Game_state.turn in
     let player = player_moving.player_num in
     log ("Player moving: " ^ string_of_int player);
+    log
+      ("row: "
+       ^ string_of_int r
+       ^ ", col: "
+       ^ string_of_int c
+       ^ ", patch_choice: "
+       ^ string_of_int patch_choice);
     let p1t = state.Game_state.tk1 in
     let p2t = state.Game_state.tk2 in
     let pqb = if player = 1 then state.p1qb else state.p2qb in
@@ -971,7 +978,17 @@ module Move = struct
       let pps = pl_remove_at patch_choice patches in
       let rot = p.rotated in
       let upd_rem_list = reml_remove_at patch_choice remaining_patches in
-      let qb = Game_board.place_patch_on_quilt_board pqb p.shape r c rot in
+      log
+        ("placing patch at "
+         ^ string_of_int r
+         ^ ", "
+         ^ string_of_int c
+         ^ ", with "
+         ^ string_of_int rot
+         ^ " rotations");
+      let qb =
+        Game_board.place_patch_on_quilt_board pqb p.shape p.pos_around_board r c rot
+      in
       Button.take_buttons state.bc player_moving p.cost;
       let new_token =
         Token.move_token_after_patch

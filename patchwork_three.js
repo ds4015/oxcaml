@@ -1164,6 +1164,7 @@ const patches = new THREE.Group();
 
 let patch_clone = null;
 let patches2;
+let opp_patches;
 
 function create_patches(
   patch_dimensions,
@@ -1250,6 +1251,7 @@ function create_patches(
           time: patch_times[i],
           income: patch_incomes[i],
           orig_rot: patch.rotation.clone(),
+          orig_quat: patch.quaternion.clone(),
         };
 
         patches.add(patch);
@@ -1484,6 +1486,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   function clickHostJoin(matchId, player) {
     console.log("clicked on host/join button");
     console.log(matchId);
+    const pl_n_field = document.getElementById("player-name");
+
     if (matchId === "") return;
     if (player === "2") {
       console.log("before: ", patches.children.length);
@@ -1518,6 +1522,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   if (patch_hits.length > 0) {
     if (inputLocked) return;
     toggleActionButtons();
+    if (view_mode !== "all_three") view_mode === "all_three";
     const chosen = patch_hits[0].object;
     if (chosen.parent.visible == false || chosen.material.wireframe == true)
       return;
@@ -1578,9 +1583,16 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const cell = hit.object;
     const row = cell.userData.row;
     const col = cell.userData.col;
+    console.log("three.js: hit row: ", row, " col: ", col);
     const patch = manipulating.userData.pos;
     const time = manipulating.userData.time;
-    const place_res = window.bonsaiPlacePatch(row, col, patch, time);
+    const place_res = window.bonsaiPlacePatch(
+      getPlayerTurn(),
+      row,
+      col,
+      patch,
+      time,
+    );
     if (place_res) {
       current_quilt_board.add(manipulating);
       manipulating.position.copy(cell.position);
@@ -1730,7 +1742,7 @@ function close_window(destroy) {
   });
   if (patch_info_2) {
     patch_info_2.traverse((obj) => {
-      if (obj.isText) {
+      if (obj.userData.isTroika === "true") {
         console.log("found text");
         toDestroy.push(obj);
       }
@@ -2274,8 +2286,8 @@ renderer.setAnimationLoop(animate);
 /* Bonsai entry points */
 
 window.checkAndSetButtonIncome = function (pnum, income, pos) {
-  if (pnum != 1) return;
   if (income === 0) return;
+  if (pnum === 0) return;
   let backtrack = pos;
   while (backtrack > 0 && backtrack % 6 != 0) {
     backtrack--;
@@ -2403,24 +2415,61 @@ window.moveNeutralTokenInitial = function (pos) {
   }
 };
 
-window.placeAIPatch = function (patch_num, row, col) {
+window.placeAIPatch = function (
+  board_to_copy_onto,
+  patch_num,
+  row,
+  col,
+  rot,
+  isAI,
+) {
   let patch;
   let cell;
+  let qb;
 
-  for (let i = 0; i < patches.children.length; i++) {
-    if (i === patch_num - 1) {
-      patch = patches.children[i];
-    }
+  const oppPatches = new THREE.Group();
+
+  console.log(
+    "board to copy onto: ",
+    board_to_copy_onto,
+    ", patch_num: ",
+    patch_num,
+    " row: ",
+    row,
+    ", col: ",
+    col,
+    ", rot: ",
+    rot,
+  );
+  if (board_to_copy_onto === 1) {
+    qb = p1_quilt_board;
+  } else {
+    qb = p2_quilt_board;
   }
-  for (let i = 0; i < p2_quilt_board.children.length; i++) {
+
+  patch = patches.children[patch_num - 1];
+
+  for (let i = 0; i < qb.children.length; i++) {
     if (
-      p2_quilt_board.children[i].userData.row === row &&
-      p2_quilt_board.children[i].userData.col === col
+      qb.children[i].userData.row === row &&
+      qb.children[i].userData.col === col
     )
-      cell = p2_quilt_board.children[i];
+      cell = qb.children[i];
   }
   const patch_clone = patch.clone(true);
   patch_clone.scale.set(1.8, 1.8, 1.8);
+  const steps = ((Math.round(rot) % 4) + 4) % 4;
+  const right = Math.PI / 2;
+
+  if (patch.userData.orig_quat) {
+    patch_clone.quaternion.copy(patch.userData.orig_quat);
+  } else if (patch.userData.orig_rot) {
+    patch_clone.rotation.copy(patch.userData.orig_rot);
+  } else {
+    patch_clone.rotation.set(0, 0, 0);
+  }
+
+  patch_clone.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), -steps * right);
   patch_clone.traverse((o) => {
     if (o.isMesh) {
       o.material = o.material.clone();
@@ -2432,8 +2481,8 @@ window.placeAIPatch = function (patch_num, row, col) {
   patch_clone.visible = true;
   patch_clone.position.copy(cell.position);
   patch_clone.position.z = (patch_clone.position.z ?? 0) + 0.02;
-  patch_clone.rotation.copy(patch.userData.orig_rot);
-  p2_quilt_board.add(patch_clone);
+  if (isAI) patch_clone.rotation.copy(patch.userData.orig_rot);
+  qb.add(patch_clone);
   patch.visible = false;
 };
 
@@ -2471,6 +2520,13 @@ window.buildInitialPatches = function (pl, pr, pc, pt, pi, n) {
   create_patches(pl, pr, pc, pt, pi);
   neut_init_pos = n;
   console.log(patches.children.length);
+};
+
+window.clearOpponentBoardPatches = function () {
+  if (opp_patches) {
+    destroy_mesh(opp_patches);
+    opp_patches.clear();
+  }
 };
 
 window.onBonsaiReady = function () {

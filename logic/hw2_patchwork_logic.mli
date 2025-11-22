@@ -5,7 +5,7 @@ open! Core
 module Player : sig
   type t = {
     player_num : int;
-    player_name : string;
+    mutable player_name : string;
     mutable buttons_owned : int;
     mutable score : int;
   }
@@ -83,7 +83,7 @@ module Game_board : sig
     squares : int;
     filled_squares : (int * int) list;
     accumulated_income: int;
-    patches : (int * int * Patch.patch_shape) list;
+    patches : (int * int * int * int) list;
   }
   [@@deriving sexp, compare, equal, yojson]
 

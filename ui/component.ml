@@ -33,6 +33,14 @@ let dim_ineligible_patches (p1 : int) (p2 : int) (p3 : int) =
   else ()
 ;;
 
+let clear_opp_patches () =
+  let open Js.Unsafe in
+  let g = global in
+  let fn = get g "clearOpponentBoardPatches" in
+  let ty = Js.to_string (Js.typeof fn) in
+  if String.equal ty "function" then ignore (fun_call fn [||]) else ()
+;;
+
 let get_patch_choices (rem_list : int list) (neut_pos : int) (_new_game : bool) =
   let patch1 = ref (-1) in
   let patch2 = ref (-1) in
@@ -40,9 +48,16 @@ let get_patch_choices (rem_list : int list) (neut_pos : int) (_new_game : bool) 
   let found_pos = ref false in
   let rec start_over rl =
     match rl with
-    | [] -> if !patch2 = -1 || !patch3 = -1 then failwith "No more patches" else ()
+    | [] ->
+      if !patch1 = -1 || !patch2 = -1 || !patch3 = -1
+      then failwith "No more patches"
+      else ()
     | hd :: tl ->
-      if !patch2 = -1
+      if !patch1 = -1
+      then (
+        patch1 := hd;
+        start_over tl)
+      else if !patch2 = -1
       then (
         patch2 := hd;
         start_over tl)
@@ -52,11 +67,12 @@ let get_patch_choices (rem_list : int list) (neut_pos : int) (_new_game : bool) 
   in
   let rec walk l =
     match l with
-    | [] -> if !patch2 = -1 || !patch3 = -1 then start_over rem_list else ()
+    | [] ->
+      if !patch1 = -1 || !patch2 = -1 || !patch3 = -1 then start_over rem_list else ()
     | hd :: tl ->
       if not !found_pos
       then
-        if hd < neut_pos
+        if hd <= neut_pos
         then walk tl
         else (
           patch1 := hd;
@@ -118,7 +134,7 @@ let mark_initial_state_as_saved () =
 ;;
 
 (* button income when passing button slot on board - for animation *)
-let determine_button_income player old_pos new_pos board_inc =
+let determine_button_income player old_pos new_pos board_inc isAi =
   log "Determine button income called.";
   let board_button_slots = [ 6; 12; 18; 24; 30; 36; 42; 48; 54 ] in
   let rec check_bbs bbs acc =
@@ -130,13 +146,14 @@ let determine_button_income player old_pos new_pos board_inc =
       else check_bbs tl acc
   in
   let total_new_income = check_bbs board_button_slots 0 in
+  let pnum = if isAi then 0 else player in
   log ("Total button income: " ^ string_of_int total_new_income);
   let open Js.Unsafe in
   let g = global in
   let fn = get g "checkAndSetButtonIncome" in
   let ty = Js.to_string (Js.typeof fn) in
   if String.equal ty "function"
-  then ignore (fun_call fn [| inject player; inject total_new_income; inject new_pos |])
+  then ignore (fun_call fn [| inject pnum; inject total_new_income; inject new_pos |])
 ;;
 
 (* single player ai turn marker to lock UI controls *)
@@ -188,13 +205,22 @@ let move_neut_token (pos : int) (init : bool) =
 ;;
 
 (* position patch in 3d coords on AI/P2 quilt board *)
-let place_ai_patch_on_qb (p : int) (r : int) (c : int) =
+let place_ai_patch_on_qb
+      (pl : int)
+      (p : int)
+      (r : int)
+      (c : int)
+      (rot : int)
+      (isAI : bool)
+  =
   let open Js.Unsafe in
   let g = global in
   let fn = get g "placeAIPatch" in
   let ty = Js.to_string (Js.typeof fn) in
   if String.equal ty "function"
-  then ignore (fun_call fn [| inject p; inject r; inject c |])
+  then
+    ignore
+      (fun_call fn [| inject pl; inject p; inject r; inject c; inject rot; inject isAI |])
   else ()
 ;;
 
@@ -340,11 +366,13 @@ let winner_component ~game_state =
              let scores = Move.score_game gs in
              let p1_score = fst scores in
              let p2_score = snd scores in
+             let p1name = gs.tk1.owned_by.player_name in
+             let p2name = gs.tk2.owned_by.player_name in
              let message =
                if p1_score > p2_score
-               then Printf.sprintf "Player wins! %d to %d" p1_score p2_score
+               then Printf.sprintf "%s wins! %d to %d" p1name p1_score p2_score
                else if p2_score > p1_score
-               then Printf.sprintf "AI wins! %d to %d" p2_score p1_score
+               then Printf.sprintf "%s wins! %d to %d" p2name p2_score p1_score
                else Printf.sprintf "Tie! %d to %d" p1_score p2_score
              in
              set_msg message)
@@ -363,15 +391,7 @@ let winner_component ~game_state =
 ;;
 
 (* state for patch placement on quilt board / hooks into Bonsai from three.js *)
-let place_patch_component
-      ~game_state
-      ~set_game_state
-      ~set_status_msg
-      ~last_turn
-      ~set_last_turn
-      ~multiplayer_mode
-      ~role
-  =
+let place_patch_component ~game_state ~set_game_state ~set_status_msg ~role =
   let%sub () =
     Bonsai.Edge.on_change
       (module Game_state)
@@ -379,41 +399,13 @@ let place_patch_component
       ~callback:
         (let%map set_game_state = set_game_state
          and set_status_msg = set_status_msg
-         and last_turn = last_turn
-         and set_last_turn = set_last_turn
-         and role = role
-         and multiplayer_mode = multiplayer_mode in
+         and role = role in
          fun game_state ->
            let my_turn =
-             (not multiplayer_mode)
-             || (multiplayer_mode
-                 && (game_state : Hw2_patchwork_logic.Game_state.t).turn.player_num = role
-                )
+             (game_state : Hw2_patchwork_logic.Game_state.t).turn.player_num = role
            in
            Bonsai.Effect.of_sync_fun
              (fun () ->
-                let publish_move ~next_turn ~mv ~patch ~row ~col ~steps =
-                  let open Js.Unsafe in
-                  let kind =
-                    match mv with
-                    | Move.Advance -> "Advance"
-                    | Move.PlacePatch -> "PlacePatch"
-                  in
-                  try
-                    let fn = get global "postMove" in
-                    ignore
-                      (fun_call
-                         fn
-                         [| inject (float_of_int next_turn)
-                          ; inject (Js.string kind)
-                          ; inject (float_of_int patch)
-                          ; inject (float_of_int row)
-                          ; inject (float_of_int col)
-                          ; inject (float_of_int steps)
-                         |])
-                  with
-                  | _ -> ()
-                in
                 if not my_turn
                 then
                   set_player_turn
@@ -441,22 +433,46 @@ let place_patch_component
                       Js_of_ocaml.Js.Unsafe.global
                       "bonsaiPlacePatch"
                       (Js_of_ocaml.Js.wrap_callback
-                         (fun (r : float) (c : float) (pc : float) (time : float) ->
+                         (fun
+                             (pl : float)
+                              (r : float)
+                              (c : float)
+                              (pc : float)
+                              (_time : float)
+                            ->
                             try
                               let row = int_of_float r in
                               let col = int_of_float c in
                               let patch_choice = int_of_float pc in
-                              let advance_spaces = int_of_float time in
+                              log
+                                ("player: "
+                                 ^ string_of_float pl
+                                 ^ ", row: "
+                                 ^ string_of_int row
+                                 ^ ", col: "
+                                 ^ string_of_int col
+                                 ^ ", patch choice: "
+                                 ^ string_of_int patch_choice);
                               let gs : Hw2_patchwork_logic.Game_state.t = state in
                               try
                                 let upd_state =
                                   Move.choose_move gs PlacePatch patch_choice row col
                                 in
-                                determine_button_income
-                                  gs.tk1.owned_by.player_num
-                                  gs.tk1.position
-                                  upd_state.tk1.position
-                                  upd_state.p1qb.accumulated_income;
+                                if role = 1
+                                then
+                                  determine_button_income
+                                    gs.tk1.owned_by.player_num
+                                    gs.tk1.position
+                                    upd_state.tk1.position
+                                    upd_state.p1qb.accumulated_income
+                                    false
+                                else
+                                  determine_button_income
+                                    gs.tk2.owned_by.player_num
+                                    gs.tk2.position
+                                    upd_state.tk2.position
+                                    upd_state.p2qb.accumulated_income
+                                    false;
                                 reposition_time_tokens
                                   upd_state.tk1.position
                                   upd_state.tk2.position;
@@ -470,33 +486,23 @@ let place_patch_component
                                   upd_state.patches_remaining
                                   upd_state.neut.pos
                                   false;
-                                set_player_turn
-                                  upd_state.turn
-                                  (if multiplayer_mode then false else true);
+                                set_player_turn upd_state.turn false;
                                 let effect1 = set_game_state upd_state in
                                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect1;
                                 let status_advance_str = "You Place Patch" in
                                 let effect2 = set_status_msg status_advance_str in
                                 Bonsai_web.Effect.Expert.handle_non_dom_event_exn effect2;
-                                if multiplayer_mode
-                                then (
-                                  let opp_turn =
-                                    if role = 1
-                                    then upd_state.tk2.owned_by
-                                    else upd_state.tk1.owned_by
-                                  in
-                                  set_player_turn opp_turn false;
-                                  let next_turn = last_turn + 1 in
-                                  publish_move
-                                    ~next_turn
-                                    ~mv:Move.PlacePatch
-                                    ~patch:patch_choice
-                                    ~row
-                                    ~col
-                                    ~steps:advance_spaces;
-                                  Bonsai_web.Effect.Expert.handle_non_dom_event_exn
-                                    (set_last_turn next_turn))
-                                else ();
+                                let json =
+                                  Hw2_patchwork_logic.Game_state.to_yojson upd_state
+                                  |> Yojson.Safe.to_string
+                                in
+                                mp_save_state ~_json:json 1 2;
+                                let opp_turn =
+                                  if role = 1
+                                  then upd_state.tk2.owned_by
+                                  else upd_state.tk1.owned_by
+                                in
+                                set_player_turn opp_turn false;
                                 install upd_state;
                                 Js_of_ocaml.Js._true
                               with
@@ -582,11 +588,21 @@ let advance_component ~game_state ~set_game_state ~set_status_msg ~multiplayer_m
                          let upd_state = Move.choose_move game_state Advance 0 0 0 in
                          set_button_count 1 upd_state.tk1.owned_by.buttons_owned;
                          set_button_count 2 upd_state.tk2.owned_by.buttons_owned;
-                         determine_button_income
-                           gs.tk1.owned_by.player_num
-                           gs.tk1.position
-                           upd_state.tk1.position
-                           upd_state.p1qb.accumulated_income;
+                         if role = 1
+                         then
+                           determine_button_income
+                             gs.tk1.owned_by.player_num
+                             gs.tk1.position
+                             upd_state.tk1.position
+                             upd_state.p1qb.accumulated_income
+                             false
+                         else
+                           determine_button_income
+                             gs.tk2.owned_by.player_num
+                             gs.tk2.position
+                             upd_state.tk2.position
+                             upd_state.p2qb.accumulated_income
+                             false;
                          move_neut_token upd_state.neut.pos false;
                          log
                            ("neut pos after advance: " ^ string_of_int upd_state.neut.pos);
@@ -625,7 +641,7 @@ let game_component =
   let%sub multiplayer_mode, set_multiplayer_mode =
     Bonsai.state (module Bool) ~default_model:false
   in
-  let%sub last_turn, set_last_turn = Bonsai.state (module Int) ~default_model:0 in
+  let%sub _last_turn, _set_last_turn = Bonsai.state (module Int) ~default_model:0 in
   let%sub status, set_status_msg = status_message_component ~message:"" in
   let%sub role, set_role = Bonsai.state (module Int) ~default_model:1 in
   let%sub multiplayer_host, set_multiplayer_host =
@@ -635,14 +651,7 @@ let game_component =
     Bonsai.state (module Int) ~default_model:0
   in
   let%sub _place_patch =
-    place_patch_component
-      ~game_state
-      ~set_game_state
-      ~set_status_msg
-      ~last_turn
-      ~set_last_turn
-      ~multiplayer_mode
-      ~role
+    place_patch_component ~game_state ~set_game_state ~set_status_msg ~role
   in
   let%sub _advance =
     advance_component ~game_state ~set_game_state ~set_status_msg ~multiplayer_mode ~role
@@ -696,6 +705,23 @@ let game_component =
                 "setUIReady"
                 (Js.wrap_callback (fun () ->
                    Bonsai_web.Effect.Expert.handle_non_dom_event_exn (set_ui_ready true)));
+              set
+                g
+                "setPlayerName"
+                (Js.wrap_callback (fun (nm : string) (num : string) ->
+                   let pnum = int_of_string num in
+                   if pnum = 1
+                   then (
+                     log ("setting player " ^ num ^ "'s name to " ^ nm);
+                     (game_state : Hw2_patchwork_logic.Game_state.t).tk1.owned_by.player_name
+                     <- nm)
+                   else (
+                     log ("setting player " ^ num ^ "'s name to " ^ nm);
+                     (game_state : Hw2_patchwork_logic.Game_state.t).tk2.owned_by.player_name
+                     <- nm);
+                   Bonsai_web.Effect.Expert.handle_non_dom_event_exn
+                     (set_game_state game_state);
+                   mp_save_state 1 2));
               set
                 g
                 "setHost"
@@ -755,6 +781,7 @@ let game_component =
                         (role_f : float)
                       ->
                       let role_i = int_of_float role_f in
+                      log ("applying state for player " ^ string_of_int role_i);
                       try
                         let s = Js.to_string s in
                         let host = int_of_float h in
@@ -772,6 +799,27 @@ let game_component =
                           if Js.to_bool ident
                           then initialize_patches st.patches st.neut.pos
                           else ();
+                          (* reproduce opponent's quilt board *)
+                          let rec place_opponent_patches_in_ui pl =
+                            match pl with
+                            | [] -> ()
+                            | (row, col, patch, rot) :: tl ->
+                              log
+                                ("applying state, placing patch on qb, role of player: "
+                                 ^ string_of_int role_i);
+                              let board_to_copy_onto = if role_i = 2 then 1 else 2 in
+                              place_ai_patch_on_qb
+                                board_to_copy_onto
+                                patch
+                                row
+                                col
+                                rot
+                                false;
+                              place_opponent_patches_in_ui tl
+                          in
+                          clear_opp_patches ();
+                          place_opponent_patches_in_ui
+                            (if role_i = 1 then st.p2qb.patches else st.p1qb.patches);
                           reposition_time_tokens st.tk1.position st.tk2.position;
                           set_button_count 1 st.tk1.owned_by.buttons_owned;
                           set_button_count 2 st.tk2.owned_by.buttons_owned;
@@ -833,7 +881,10 @@ let game_component =
                       set_button_count 2 gs.tk2.owned_by.buttons_owned;
                       set_player_turn gs.turn (if multiplayer_mode then false else true);
                       if seen_first then move_neut_token gs.neut.pos false;
-                      get_patch_choices gs.patches_remaining gs.neut.pos false)
+                      get_patch_choices gs.patches_remaining gs.neut.pos false;
+                      if gs.turn.player_num <> role
+                      then ai_start_turn ()
+                      else ai_end_turn ())
                     else ())
                  ()
              in
@@ -842,28 +893,20 @@ let game_component =
                then
                  Bonsai.Effect.of_sync_fun
                    (fun () ->
-                      let _is_multiplayer =
-                        try
-                          Js_of_ocaml.Js.to_bool
-                            (Js_of_ocaml.Js.Unsafe.fun_call
-                               (Js.Unsafe.get Js.Unsafe.global "isMultiplayer")
-                               [||])
-                        with
-                        | _ -> false
-                      in
                       ai_start_turn ();
                       delay 3000 (fun () ->
                         let mv, p, r, c = Hw4_patchwork_ai_heuristics.determine_move gs in
                         match mv with
                         | Move.PlacePatch ->
                           log ("ai chooses patch " ^ string_of_int p);
-                          place_ai_patch_on_qb p r c;
+                          place_ai_patch_on_qb 2 p r c 0 true;
                           let upd = Move.choose_move gs Move.PlacePatch p r c in
                           determine_button_income
                             gs.tk2.owned_by.player_num
                             gs.tk2.position
                             upd.tk2.position
-                            upd.p2qb.accumulated_income;
+                            upd.p2qb.accumulated_income
+                            true;
                           reposition_time_tokens upd.tk1.position upd.tk2.position;
                           set_button_count 1 upd.tk1.owned_by.buttons_owned;
                           set_button_count 2 upd.tk2.owned_by.buttons_owned;
@@ -884,7 +927,8 @@ let game_component =
                             gs.tk2.owned_by.player_num
                             gs.tk2.position
                             upd.tk2.position
-                            upd.p2qb.accumulated_income;
+                            upd.p2qb.accumulated_income
+                            true;
                           reposition_time_tokens upd.tk1.position upd.tk2.position;
                           set_button_count 1 upd.tk1.owned_by.buttons_owned;
                           set_button_count 2 upd.tk2.owned_by.buttons_owned;
