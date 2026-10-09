@@ -1,44 +1,78 @@
-# TicTacToe using OCaml
+# Patchwork 3D
 
-To make a dev-environment, press the green "Code" button, then select "+" next to "Codespaces".  A new Codespace will open.  It currently takes 20-40 minutes to initialize; please be patient.
+**A browser-based, two-player 3D adaptation of the quilt-building strategy game Patchwork.**
 
-Once initialized you need to run the following commands:
-```shell
-opam init -a --disable-sandboxing --yes --bare && \
-        opam update -a && \
-        opam switch create 4.14.0 --yes  && \
-        eval $(opam env --switch 4.14.0) && \
-        opam install --yes  ocamlformat merlin ocaml-lsp-server bonsai
+Arrange patches on your quilt board, manage buttons and time, and compete to finish with the highest score. The project combines a Three.js 3D interface with OCaml-based game components and Firebase-backed multiplayer synchronization.
+
+### [▶ Play Patchwork 3D](https://ds4015.github.io/oxcaml/patchwork_3d.html)
+
+[Play in browser](https://ds4015.github.io/oxcaml/patchwork_3d.html) · [View source](https://github.com/ds4015/oxcaml) · [Developer portfolio](https://www.dallas-scott.org)
+
+## Features
+
+- **Interactive 3D game board** with quilt boards, patches, tokens, and in-scene UI.
+- **Two-player match interface**: host or join using a shared Match ID.
+- **Patch placement and time-track mechanics** inspired by the tabletop game.
+- **Button economy**: balance the cost, time, and recurring income of patches.
+- **Multiplayer state synchronization** implemented with Firebase Authentication and Firestore.
+- **Runs in a modern desktop browser** without installing the game locally.
+
+## How to play
+
+1. Open **[Patchwork 3D](https://ds4015.github.io/oxcaml/patchwork_3d.html)**.
+2. Enter your player name and a Match ID.
+3. Select **Host** to create a match, or **Join** to enter an existing match using the same ID.
+4. Take turns choosing between advancing on the time track and selecting an available patch to place on your quilt board.
+5. Use buttons to acquire patches, and collect income when you pass income markers on the time track.
+6. When both players reach the end of the time track, the game scores your remaining buttons and empty quilt spaces.
+
+**Scoring:** final score = buttons remaining − 2 × empty quilt-board spaces.
+
+> The game requires an active internet connection for its hosted libraries and multiplayer services. Match availability depends on the configured Firebase backend.
+
+## Technology
+
+| Layer | Tools |
+| --- | --- |
+| 3D interface and interaction | JavaScript, [Three.js](https://threejs.org/) |
+| In-scene text | [Troika Three Text](https://github.com/protectwise/troika) |
+| Game logic and UI components | OCaml, Bonsai, compiled JavaScript |
+| Multiplayer and match persistence | Firebase Authentication, Cloud Firestore |
+| Web hosting | GitHub Pages |
+
+## Project structure
+
+| Path | Purpose |
+| --- | --- |
+| [`patchwork_3d.html`](patchwork_3d.html) | Main browser game page and Host/Join interface |
+| [`patchwork_three.js`](patchwork_three.js) | 3D scenes, game board, rendering, and interactions |
+| [`multiplayer.js`](multiplayer.js) | Firebase initialization, matchmaking, and multiplayer state synchronization |
+| [`logic/`](logic/) and [`ui/`](ui/) | OCaml game and UI source files |
+| [`generated_js/`](generated_js/) | Compiled browser-side JavaScript |
+| [`img3d/`](img3d/) and [`sounds/`](sounds/) | Visual and audio assets |
+
+## Run locally
+
+For the browser version, clone the repository and serve the files over HTTP:
+
+```bash
+git clone --branch gh-pages https://github.com/ds4015/oxcaml.git
+cd oxcaml
+python3 -m http.server 8000
 ```
 
-Afterwards you should have a full OPAM environment with the OCaml compiler and dune on the path.  VSCode will have the OCaml Platform plugin together with the LSP server and merlin, the editor assistant.
+Then visit **http://localhost:8000/patchwork_3d.html**.
 
-## Building the OCaml project
-Make sure you're using the right opam switch:
-```shell
-eval $(opam env --switch 4.14.0)
-```
+Running a local server avoids some browser restrictions on modules and asset loading. The deployed multiplayer service still depends on the Firebase project configuration and access rules. Rebuilding the OCaml-generated files is a separate development step, not necessary for simply viewing the existing web build.
 
-To format the files:
-```shell
-dune fmt
-```
+## Development notes
 
-To build and run tests continously:
-```shell
-dune build @runtest --watch
-```
+The game page loads `patchwork_three.js`, `multiplayer.js`, and the compiled `generated_js/component.bc.js` bundle. The 3D layer uses Three.js; the multiplayer layer uses Firebase for match state. The repository also includes OCaml development scaffolding inherited from its upstream playground.
 
-To promote/update expect-tests:
-```shell
-dune promote
-```
+## Credits and license
 
-To update the javascript:
-```shell
-cp _build/default/ui/tictactoe_ui.bc.js generated_js/
-```
-Then commit the changes and surf to your github.io to see you site:
-https://yoav-zibin.github.io/oxcaml/
+Patchwork 3D is an **unofficial digital project inspired by the tabletop game Patchwork**. This repository is a fork of [yoav-zibin/oxcaml](https://github.com/yoav-zibin/oxcaml); upstream starter code and tooling should be credited separately from the Patchwork-specific work in this fork.
 
+Project maintained by **[Dallas Scott](https://www.dallas-scott.org)**.
 
+See the repository's [MIT license](LICENSE) for the software license. Third-party libraries, artwork, and the underlying tabletop game may carry separate rights.
